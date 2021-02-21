@@ -29,7 +29,6 @@ const arrows = trackKeys({
 });
 
 let graphicScale = 1.00;
-let allowLowFps = false;
 let backgroundColor = "#333";
 let lastUpd;
 let canv;
@@ -42,6 +41,7 @@ const map = {};
 let ctx;
 let isPlay = true;
 let isBossbattle = false;
+
 const cam = {
     x: 0,
     y: 0,
@@ -64,7 +64,7 @@ const mouse = {
 const players = [
     new Player(10, 10, 0, 0), // Player 1, default WASD
     new Player(20, 20, 240, Math.PI), // Player 2, default Arrows
-    new Player(15, 15, 140, -Math.PI2) // Player 3, default IJKL
+    // new Player(15, 15, 140, -Math.PI2) // Player 3, default IJKL
 ];
 const playerBoomPrefab = new Boom(0, 0, 2, 3, 1, 200);
 const enemies = [
@@ -594,14 +594,6 @@ function draw(time) {
     drawBooms(nTime, deltaTime);
     drawAnimations(nTime, deltaTime);
     drawUI(nTime, deltaTime);
-
-    if (!allowLowFps && deltaTime > 1 / 25) {
-        if (confirm(`Низкий FPS: ${ Math.round(1 / deltaTime) }. Снизить разрешение?`)) {
-            graphicScale *= 0.6;
-            updateZZ();
-        }
-        allowLowFps = true;
-    }
 
     arrows.resetFrame();
     lastUpd = nTime;
