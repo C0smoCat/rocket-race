@@ -1,0 +1,14 @@
+body {
+    display: flex;
+    margin: 0;
+    align-items: center;
+    background: #1e222f;
+    justify-content: center;
+    user-select: none;
+    -moz-user-select: none;
+}
+
+canvas {
+    width: 100vw;
+    height: 100vh;
+}
