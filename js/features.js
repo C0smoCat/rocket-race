@@ -89,6 +89,12 @@ Math.angleDiff = (angle1, angle2) => {
         return diff;
 };
 
+Math.rad2deg = (rad) =>
+    rad * 180 / Math.PI;
+
+Math.deg2rad = (deg) =>
+    deg * Math.PI / 180;
+
 Math.randomizeArray = (array) =>
     array[Math.floor(Math.random() * (array.length))];
 

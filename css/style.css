@@ -12,3 +12,17 @@ canvas {
     width: 100vw;
     height: 100vh;
 }
+
+#menu-levels {
+    width: 20vw;
+    min-width: 100px;
+    position: absolute;
+    left: 20px;
+    top: 50%;
+    transform: translateY(-50%);
+}
+
+#menu-levels button {
+    width: 100%;
+    padding: 1rem;
+}

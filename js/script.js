@@ -6,7 +6,6 @@ import { simplex2 } from "./perlin.js";
 import trackKeys from "./trackKeys.js";
 import { Player } from "./player.js";
 import { Boom } from "./boom.js";
-import { Rocket } from "./rocket.js";
 
 const arrows = trackKeys({
     // Player 1
@@ -24,10 +23,26 @@ const arrows = trackKeys({
     right3: [ "KeyL" ],
     up3: [ "KeyI" ],
 
+    // Player 4
+    left4: [ "Numpad4" ],
+    right4: [ "Numpad6" ],
+    up4: [ "Numpad8" ],
+
     pause: [ "Escape" ],
     bossbattle: [ "Backquote" ]
 });
 
+let menuSelectLevel = undefined;
+const levels = [
+    {
+        title: "Level 1",
+        path: "./levels/level-1.js"
+    },
+    {
+        title: "Level 2",
+        path: "./levels/level-2.js"
+    }
+];
 let graphicScale = 1.00;
 let backgroundColor = "#333";
 let lastUpd;
@@ -35,21 +50,13 @@ let canv;
 let wScale = 1;
 let hScale = 1;
 let zz = 0;
-let mapW = 30;
-let mapH = 30;
-const map = {};
 let ctx;
 let isPlay = true;
 let isBossbattle = false;
 
-const cam = {
-    x: 0,
-    y: 0,
-    scale: 20,
-    minScale: 5,
-    maxScale: 30
-};
-const animations = [];
+let mapW = 30;
+let mapH = 30;
+const map = [];
 const mouse = {
     mapX: 0,
     mapY: 0,
@@ -61,483 +68,35 @@ const mouse = {
     lastScreenY: 0,
     mode: null
 };
-const players = [
-    new Player(10, 10, 0, 0), // Player 1, default WASD
-    new Player(20, 20, 240, Math.PI), // Player 2, default Arrows
-    // new Player(15, 15, 140, -Math.PI2) // Player 3, default IJKL
-];
-const playerBoomPrefab = new Boom(0, 0, 2, 3, 1, 200);
-const enemies = [
-    // general
-    {
-        x: 10,
-        y: 20,
-        angle: 0,
-        maxTurnSpeed: 0.3 * Math.doublePI,
-        radius: 7,
-        reload: 0,
-        maxReload: 4,
-        maxAngleDiff: 0.1 * Math.doublePI,
-        targetPlayer: undefined,
-        rocketPrefab: 0
-    },
-    {
-        x: 20,
-        y: 10,
-        angle: 0,
-        maxTurnSpeed: 0.3 * Math.doublePI,
-        radius: 7,
-        reload: 0,
-        maxReload: 4,
-        maxAngleDiff: 0.1 * Math.doublePI,
-        targetPlayer: undefined,
-        rocketPrefab: 0
-    },
-    {
-        x: 8,
-        y: 28,
-        angle: 0,
-        maxTurnSpeed: 0.3 * Math.doublePI,
-        radius: 7,
-        reload: 0,
-        maxReload: 4,
-        maxAngleDiff: 0.1 * Math.doublePI,
-        targetPlayer: undefined,
-        rocketPrefab: 0
-    },
-    {
-        x: 22,
-        y: 2,
-        angle: 0,
-        maxTurnSpeed: 0.3 * Math.doublePI,
-        radius: 7,
-        reload: 0,
-        maxReload: 4,
-        maxAngleDiff: 0.1 * Math.doublePI,
-        targetPlayer: undefined,
-        rocketPrefab: 0
-    },
-
-    // snipers
-    {
-        x: 5,
-        y: 5,
-        angle: 0,
-        maxTurnSpeed: 0.2 * Math.doublePI,
-        radius: 15,
-        reload: 4,
-        maxReload: 6,
-        maxAngleDiff: 0.01 * Math.doublePI,
-        targetPlayer: undefined,
-        rocketPrefab: 1,
-        texture: "towerSniper"
-    },
-    {
-        x: 25,
-        y: 25,
-        angle: 0,
-        maxTurnSpeed: 0.2 * Math.doublePI,
-        radius: 15,
-        reload: 4,
-        maxReload: 6,
-        maxAngleDiff: 0.01 * Math.doublePI,
-        targetPlayer: undefined,
-        rocketPrefab: 1,
-        texture: "towerSniper"
-    },
-
-    // heavy
-    {
-        x: 5,
-        y: 15,
-        angle: 0,
-        maxTurnSpeed: 0.02 * Math.doublePI,
-        radius: 15,
-        reload: 10,
-        maxReload: 10,
-        maxAngleDiff: 0.2 * Math.doublePI,
-        targetPlayer: undefined,
-        rocketPrefab: 2,
-        texture: "towerHeavy"
-    },
-    {
-        x: 25,
-        y: 15,
-        angle: 0,
-        maxTurnSpeed: 0.1 * Math.doublePI,
-        radius: 15,
-        reload: 10,
-        maxReload: 10,
-        maxAngleDiff: 0.2 * Math.doublePI,
-        targetPlayer: undefined,
-        rocketPrefab: 2,
-        texture: "towerHeavy"
-    }
-];
-const rocketPrefabs = [
-    new Rocket(0, 0, 0, 6, 10, 5, 0.5 * Math.doublePI, 340, new Boom(0, 0, 2, 2, 0.5)),
-    new Rocket(0, 0, 0, 15, 5, 0, 0, 240, new Boom(0, 0, 3, 1, 0.2)),
-    new Rocket(0, 0, 0, 4, 90, 15, 0.3 * Math.doublePI, 140, new Boom(0, 0, 5, 5, 1))
-];
+let cam = {
+    x: 15,
+    y: 15,
+    scale: 20,
+    minScale: 5,
+    maxScale: 30
+};
+const players = [];
+let playerBoomPrefab = undefined;
+let weapons = [];
+let rocketPrefabs = [];
+let checkpoints = [];
+let bosses = [];
 const rockets = [];
 const booms = [];
-const checkpoints = [
-    {
-        x: 25,
-        y: 5,
-        radius: 0.75,
-        checkedPlayers: []
-    },
-    {
-        x: 15,
-        y: 2,
-        radius: 0.75,
-        checkedPlayers: []
-    },
-    {
-        x: 5,
-        y: 25,
-        radius: 0.75,
-        checkedPlayers: []
-    },
-    {
-        x: 15,
-        y: 28,
-        radius: 0.75,
-        checkedPlayers: []
-    },
-    {
-        x: 15,
-        y: 15,
-        radius: 0.75,
-        checkedPlayers: []
-    },
-    {
-        x: 20,
-        y: 15,
-        radius: 0.75,
-        checkedPlayers: []
-    },
-    {
-        x: 10,
-        y: 15,
-        radius: 0.75,
-        checkedPlayers: []
-    },
-    {
-        x: 15,
-        y: 10,
-        radius: 0.75,
-        checkedPlayers: []
-    },
-    {
-        x: 15,
-        y: 20,
-        radius: 0.75,
-        checkedPlayers: []
-    },
-    {
-        x: 20,
-        y: 25,
-        radius: 0.75,
-        checkedPlayers: []
-    },
-    {
-        x: 10,
-        y: 5,
-        radius: 0.75,
-        checkedPlayers: []
-    },
-    {
-        x: 25,
-        y: 20,
-        radius: 0.75,
-        checkedPlayers: []
-    },
-    {
-        x: 5,
-        y: 10,
-        radius: 0.75,
-        checkedPlayers: []
-    },
-    {
-        x: 28,
-        y: 28,
-        radius: 0.75,
-        checkedPlayers: []
-    },
-    {
-        x: 2,
-        y: 2,
-        radius: 0.75,
-        checkedPlayers: []
-    }
-];
-const bosses = [
-    {
-        x: 15,
-        y: -5,
-        vx: 0,
-        vy: 0,
-        trust: 0,
-        maxTrust: 10,
-        rotate: 0,
-        maxSpeed: 2,
-        target: null,
-        angle: Math.PI2,
-        turnSpeed: 0.1 * Math.doublePI,
-        weapons: [
-            {
-                ox: 1,
-                oy: 0,
-                angle: Math.PI2 * 3,
-                maxTurnSpeed: 0.3 * Math.doublePI,
-                radius: 20,
-                reload: 7.5,
-                maxReload: 5,
-                maxAngleDiff: 0.1 * Math.doublePI,
-                targetPlayer: undefined,
-                rocketPrefab: 1,
-                scale: 1,
-                texture: "towerSniper"
-            },
-            {
-                ox: -1,
-                oy: 0,
-                angle: Math.PI2 * 3,
-                maxTurnSpeed: 0.3 * Math.doublePI,
-                radius: 20,
-                reload: 5,
-                maxReload: 5,
-                maxAngleDiff: 0.1 * Math.doublePI,
-                targetPlayer: undefined,
-                rocketPrefab: 1,
-                scale: 1,
-                texture: "towerSniper"
-            },
-            {
-                ox: 2,
-                oy: -1.8,
-                angle: Math.PI2 * 3,
-                maxTurnSpeed: 0.3 * Math.doublePI,
-                radius: 15,
-                reload: 5,
-                maxReload: 1,
-                maxAngleDiff: 0.1 * Math.doublePI,
-                targetPlayer: undefined,
-                rocketPrefab: 0,
-                scale: 1,
-                texture: "towerGeneral"
-            },
-            {
-                ox: -2,
-                oy: -1.8,
-                angle: Math.PI2 * 3,
-                maxTurnSpeed: 0.3 * Math.doublePI,
-                radius: 15,
-                reload: 5,
-                maxReload: 1,
-                maxAngleDiff: 0.1 * Math.doublePI,
-                targetPlayer: undefined,
-                rocketPrefab: 0,
-                scale: 1,
-                texture: "towerGeneral"
-            }
-        ],
-        texture: "ship2",
-        scale: 5
-    },
-    {
-        x: 15,
-        y: 35,
-        vx: 0,
-        vy: 0,
-        trust: 0,
-        maxTrust: 10,
-        rotate: 0,
-        maxSpeed: 2,
-        target: null,
-        angle: -Math.PI2,
-        turnSpeed: 0.1 * Math.doublePI,
-        noRotateTexture: true,
-        weapons: [
-            {
-                ox: 0,
-                oy: -0.6,
-                angle: Math.PI2 * 3,
-                maxTurnSpeed: 0,
-                radius: 25,
-                reload: 7.5,
-                maxReload: 5,
-                maxAngleDiff: Math.doublePI,
-                targetPlayer: undefined,
-                rocketPrefab: {
-                    hue: 280,
-                    x: 0,
-                    y: 0,
-                    vx: 0,
-                    vy: 0,
-                    trust: 0,
-                    maxSpeed: 0,
-                    lifetime: 0,
-                    angle: 0,
-                    maxTurnSpeed: 0,
-                    radius: 0,
-                    line: [],
-                    boomPrefab: {
-                        x: 0,
-                        y: 0,
-                        ax: 0,
-                        ay: 0,
-                        maxRadius: 6,
-                        radius: 0,
-                        lifetime: 7,
-                        maxLifetime: 7,
-                        hideTime: 1,
-                        maxHideTime: 1
-                    }
-                },
-                scale: 1,
-                texture: "towerHeavy"
-            }
-        ],
-        texture: "ship3",
-        scale: 5
-    },
-    {
-        x: -25,
-        y: 15,
-        vx: 0,
-        vy: 0,
-        trust: 0,
-        maxTrust: 10,
-        rotate: 0,
-        maxSpeed: 2,
-        target: null,
-        angle: Math.PI2,
-        turnSpeed: 0.1 * Math.doublePI,
-        weapons: [
-            {
-                ox: 0,
-                oy: 1,
-                angle: Math.PI2 * 3,
-                maxTurnSpeed: 0.3 * Math.doublePI,
-                radius: 10,
-                reload: 3.25,
-                maxReload: 0.5,
-                maxAngleDiff: 0.1 * Math.doublePI,
-                targetPlayer: undefined,
-                rocketPrefab: {
-                    hue: 280,
-                    x: 0,
-                    y: 0,
-                    vx: 0,
-                    vy: 0,
-                    trust: 0,
-                    maxSpeed: 15,
-                    lifetime: 1,
-                    angle: 0,
-                    maxTurnSpeed: 0,
-                    radius: 0,
-                    line: [],
-                    boomPrefab: {
-                        x: 0,
-                        y: 0,
-                        ax: 0,
-                        ay: 0,
-                        maxRadius: 1,
-                        radius: 0,
-                        lifetime: 0.5,
-                        maxLifetime: 0.5,
-                        hideTime: 0.2,
-                        maxHideTime: 0.2
-                    }
-                },
-                scale: 1,
-                texture: "towerSniper"
-            },
-            {
-                ox: 0,
-                oy: -1,
-                angle: 0,
-                maxTurnSpeed: 0.3 * Math.doublePI,
-                radius: 10,
-                reload: 3,
-                maxReload: 0.5,
-                maxAngleDiff: 0.1 * Math.doublePI,
-                targetPlayer: undefined,
-                rocketPrefab: {
-                    hue: 280,
-                    x: 0,
-                    y: 0,
-                    vx: 0,
-                    vy: 0,
-                    trust: 0,
-                    maxSpeed: 15,
-                    lifetime: 1,
-                    angle: 0,
-                    maxTurnSpeed: 0,
-                    radius: 0,
-                    line: [],
-                    boomPrefab: {
-                        x: 0,
-                        y: 0,
-                        ax: 0,
-                        ay: 0,
-                        maxRadius: 1,
-                        radius: 0,
-                        lifetime: 0.5,
-                        maxLifetime: 0.5,
-                        hideTime: 0.2,
-                        maxHideTime: 0.2
-                    }
-                },
-                scale: 1,
-                texture: "towerSniper"
-            }
-        ],
-        texture: "ship4",
-        scale: 5
-    }
-];
 
 function main() {
-    lastUpd = new Date().getTime();
+    menuSelectLevel = document.getElementById("menu-levels");
+    for (const level of levels) {
+        const btn = document.createElement("button");
+        btn.textContent = level.title;
+        btn.addEventListener("click", () => loadLevel(level.path));
+        menuSelectLevel.appendChild(btn);
+    }
+
     canv = document.getElementById("canvas");
     document.body.style.backgroundColor = backgroundColor;
-    cam.x = mapW / 2;
-    cam.y = mapH / 2;
     addEventListener("resize", updateZZ);
     ctx = canv.getContext("2d");
-    updateZZ();
-
-    for (const en of enemies) {
-        en.angle = Math.atan2(en.y - mapH / 2, en.x - mapW / 2);
-    }
-
-    if (debug.extraPlayers && debug.extraPlayers > 0) {
-        for (let i = 0; i < debug.extraPlayers; i++) {
-            const angle = i * Math.doublePI / debug.extraPlayers;
-            const pl = new Player(15 + Math.cos(angle) * 14, 15 + Math.sin(angle) * 14, i / debug.extraPlayers * 360, angle + Math.PI);
-            players.push(pl);
-        }
-    }
-
-    for (let x = 0; x < mapW; x++) {
-        map[x] = {};
-        for (let y = 0; y < mapH; y++) {
-            const value = Math.unLerp(simplex2(x / 10, y / 10));
-            let type = null;
-            if (value <= 0.2) {
-                type = "water";
-            } else if (value >= 0.6) {
-                type = "grass";
-            }
-            if (type) {
-                map[x][y] = { value, type };
-            }
-        }
-    }
 
     canv.addEventListener("contextmenu", (event) => {
         event.preventDefault();
@@ -554,7 +113,168 @@ function main() {
         canv.addEventListener("MozMousePixelScroll", onMouseWheel);
     }
 
-    requestAnimationFrame(draw);
+    lastUpd = Date.now();
+
+    loadLevel(null)
+        .then(() => requestAnimationFrame(draw))
+        .catch(e => console.error(e));
+}
+
+async function loadLevel(levelPath) {
+    isPlay = false;
+    rockets.length = 0;
+    booms.length = 0;
+    players.length = 0;
+    weapons.length = 0;
+    checkpoints.length = 0;
+    bosses.length = 0;
+    rocketPrefabs.length = 0;
+    mapW = 30;
+    mapH = 30;
+
+    if (levelPath) {
+        try {
+            const level = (await import(levelPath)).default;
+
+            if (level) {
+                cam = Object.assign({}, level.cam);
+                for (const pl of level.players) {
+                    const player = new Player(
+                        pl.x,
+                        pl.y,
+                        pl.hue,
+                        Math.deg2rad(pl.angle || 0)
+                    );
+                    players.push(player);
+                }
+                playerBoomPrefab = getBoomPrefab(level, level.boomPrefabs[0], 200);
+
+                for (const wp of level.weapons) {
+                    weapons.push(getWeapon(level, wp));
+                }
+
+                for (const cp of level.checkpoints) {
+                    const checkpoint = new Checkpoint(
+                        cp.x,
+                        cp.y,
+                        cp.radius || 0.75
+                    );
+                    checkpoints.push(checkpoint);
+                }
+
+                for (const bs of level.bosses) {
+                    const boss = new Boss(
+                        bs.x,
+                        bs.y,
+                        Math.deg2rad(bs.angle || 0),
+                        bs.trust || 10,
+                        bs.speed || 2,
+                        Math.deg2rad(bs.turnSpeed || 36),
+                        bs.texture,
+                        bs.w || bs.scale || 5,
+                        bs.h || bs.scale || 5,
+                        bs.noRotateTexture || false,
+                        bs.weapons.map(w => getWeapon(level, w))
+                    );
+                    bosses.push(boss);
+                }
+
+                rocketPrefabs = level.rocketPrefabs.slice();
+
+                mapW = level.mapW;
+                mapH = level.mapH;
+
+                if (debug.extraPlayers && debug.extraPlayers > 0) {
+                    for (let i = 0; i < debug.extraPlayers; i++) {
+                        const angle = i * Math.doublePI / debug.extraPlayers;
+                        const pl = new Player(15 + Math.cos(angle) * 14, 15 + Math.sin(angle) * 14, i / debug.extraPlayers * 360, angle + Math.PI);
+                        players.push(pl);
+                    }
+                }
+            }
+            setLevelsMenu(false);
+        } catch (e) {
+            console.error(`failed load level "${ levelPath }"`, e);
+        }
+    }
+
+    map.length = 0;
+    for (let x = 0; x < mapW; x++) {
+        map[x] = [];
+        for (let y = 0; y < mapH; y++) {
+            const value = Math.unLerp(simplex2(x / 10, y / 10));
+            let type = null;
+            if (value <= 0.2) {
+                type = "water";
+            } else if (value >= 0.6) {
+                type = "grass";
+            }
+            if (type) {
+                map[x][y] = { value, type };
+            }
+        }
+    }
+
+    updateZZ();
+    lastUpd = Date.now();
+    isBossbattle = false;
+    isPlay = true;
+
+    function getWeapon(level, w) {
+        if (w.prefab !== undefined) {
+            w = Object.assign(level.weaponPrefabs[w.prefab], w);
+        }
+
+        return new Weapon(
+            w.x,
+            w.y,
+            w.angle !== undefined ? Math.deg2rad(w.angle) : Math.atan2(w.y - mapH / 2, w.x - mapW / 2),
+            getRocketPrefab(level, w.rocketPrefab),
+            Math.deg2rad(w.turnSpeed >= 0 ? w.turnSpeed : 100),
+            w.radius || 7,
+            w.maxReload || 4,
+            Math.deg2rad(w.maxAngleDiff || 45),
+            w.texture,
+            w.reload
+        );
+    }
+
+    function getRocketPrefab(level, r) {
+        if (Number.isInteger(r)) {
+            r = level.rocketPrefabs[r];
+        } else if (r.prefab !== undefined) {
+            r = Object.assign(level.rocketPrefabs[r.prefab], r.prefab);
+            delete r.prefab;
+        }
+        return {
+            maxSpeed: r.speed,
+            lifetime: r.lifetime,
+            radius: r.radius,
+            maxTurnSpeed: r.turnSpeed,
+            hue: r.hue || 0,
+            trust: r.trust || 20,
+            boomPrefab: getBoomPrefab(level, r.boomPrefab)
+        };
+    }
+
+    function getBoomPrefab(level, b, hue = 0) {
+        if (Number.isInteger(b)) {
+            b = level.boomPrefabs[b];
+        } else if (b.prefab !== undefined) {
+            b = Object.assign(level.boomPrefabs[b.prefab], b.prefab);
+            delete b.prefab;
+        }
+        return {
+            radius: b.radius || 2,
+            lifetime: b.lifetime || 1,
+            hideTime: b.hideTime || 0.5,
+            hue: hue
+        };
+    }
+}
+
+function setLevelsMenu(enable) {
+    menuSelectLevel.style.display = enable ? "block" : "none";
 }
 
 function draw(time) {
@@ -574,13 +294,14 @@ function draw(time) {
     }
     if (arrows.isUp("pause")) {
         isPlay = !isPlay;
+        setLevelsMenu(!isPlay);
     }
 
     if (isPlay) {
         updateBooms(nTime, deltaTime);
         updatePlayers(nTime, deltaTime);
         updateRockets(nTime, deltaTime);
-        updateEnemies(nTime, deltaTime);
+        updateWeapons(nTime, deltaTime);
         updateBosses(nTime, deltaTime);
     }
 
@@ -588,30 +309,15 @@ function draw(time) {
     drawMapGrid(nTime, deltaTime);
     drawCheckpoints(nTime, deltaTime);
     drawRockets(nTime, deltaTime);
-    drawEnemies(nTime, deltaTime);
+    drawWeapons(nTime, deltaTime);
     drawPlayers(nTime, deltaTime);
     drawBosses(nTime, deltaTime);
     drawBooms(nTime, deltaTime);
-    drawAnimations(nTime, deltaTime);
     drawUI(nTime, deltaTime);
 
     arrows.resetFrame();
     lastUpd = nTime;
     requestAnimationFrame(draw);
-}
-
-function drawAnimations(nTime, deltaTime) {
-    for (let i = 0; i < animations.length; i++) {
-        const anim = animations[i];
-        anim.progress += deltaTime / anim.duration;
-        const x = Math.lerp(anim.progress, anim.from_x, anim.to_x);
-        const y = Math.lerp(anim.progress, anim.from_y, anim.to_y);
-        const a = Math.atan2(anim.to_x - anim.from_x, anim.from_y - anim.to_y);
-        drawImage(imgs["shotLarge"], screenX(x), screenY(y), a, zz * 0.3);
-        if (anim.progress >= 1) {
-            animations.splice(i, 1);
-        }
-    }
 }
 
 function drawMap(nTime, deltaTime) {
@@ -697,7 +403,6 @@ function updatePlayers(nTime, deltaTime) {
             continue;
         if (debug.playerMouseControl) {
             if (mouse.mode === "second") {
-                const pl = pl;
                 pl.trust = pl.maxTrust;
                 const tAngle = Math.atan2(mouse.mapY - pl.y, mouse.mapX - pl.x);
                 pl.rotate = Math.angleDiff(pl.angle, tAngle);
@@ -759,7 +464,6 @@ function updatePlayers(nTime, deltaTime) {
             pl.y += pl.vy * deltaTime;
         }
 
-
         if (pl.x < 0 || mapW < pl.x) {
             pl.x = Math.clamp(pl.x, 0, mapW);
             pl.vx = -pl.vx * 0.5;
@@ -770,9 +474,14 @@ function updatePlayers(nTime, deltaTime) {
             pl.vy = -pl.vy * 0.5;
         }
 
-
         if (pl.line.length <= 0 || (nTime - pl.line[pl.line.length - 1].t >= 20))
-            pl.line.push({ t: nTime, x: pl.x, y: pl.y, vx: -pl.vx, vy: -pl.vy });
+            pl.line.push({
+                t: nTime,
+                x: pl.x,
+                y: pl.y,
+                vx: -pl.vx,
+                vy: -pl.vy
+            });
         while (nTime - pl.line[0].t >= 1000) {
             pl.line.shift();
         }
@@ -814,13 +523,16 @@ function drawPlayers(nTime, deltaTime) {
         let y = screenY(pl.y);
 
         if (pl.line.length > 1 && !pl.isDead) {
-            for (let t = 1; t < pl.line.length; t++) {
+            for (let t = 1; t <= pl.line.length; t++) {
                 ctx.beginPath();
                 ctx.moveTo(screenX(pl.line[t - 1].x), screenY(pl.line[t - 1].y));
                 let per = t / pl.line.length;
                 ctx.lineWidth = Math.max(1, (zz * 0.05) * (per * 5));
                 ctx.strokeStyle = `hsla(${ pl.hue },100%,50%,${ per * 0.6 })`;
-                ctx.lineTo(screenX(pl.line[t].x), screenY(pl.line[t].y));
+                if (t === pl.line.length)
+                    ctx.lineTo(screenX(pl.x), screenY(pl.y));
+                else
+                    ctx.lineTo(screenX(pl.line[t].x), screenY(pl.line[t].y));
                 ctx.stroke();
             }
         }
@@ -837,8 +549,8 @@ function drawPlayers(nTime, deltaTime) {
     }
 }
 
-function updateEnemies(nTime, deltaTime) {
-    for (const en of enemies) {
+function updateWeapons(nTime, deltaTime) {
+    for (const en of weapons) {
         const targetPlayer = players
             .reduce((prev, pl, pi) => {
                 if (pl.isDead)
@@ -879,13 +591,13 @@ function updateEnemies(nTime, deltaTime) {
     }
 }
 
-function drawEnemies(nTime, deltaTime) {
+function drawWeapons(nTime, deltaTime) {
     ctx.lineWidth = Math.max(1, zz * 0.05);
     ctx.shadowBlur = 0;
-    for (let en of enemies) {
+    for (let en of weapons) {
         let x = screenX(en.x);
         let y = screenY(en.y);
-        if (debug.enemies) {
+        if (debug.drawWeapons) {
             if (en.targetPlayer) {
                 ctx.strokeStyle = "#00ff0088";
                 ctx.fillStyle = "#00ff0022";
@@ -900,8 +612,8 @@ function drawEnemies(nTime, deltaTime) {
             }
         }
 
-        drawImage(imgs["towerPlatform"], x, y, 0, zz * 1.5);
-        drawImage(imgs[en.texture || "towerGeneral"], x, y, en.angle + Math.PI2, zz * 1.2);
+        drawImage(imgs["towerPlatform"], x, y, 0, zz * en.scale * 1.5);
+        drawImage(imgs[en.texture || "towerGeneral"], x, y, en.angle + Math.PI2, zz * en.scale * 1.2);
     }
 }
 
@@ -1047,7 +759,7 @@ function updateBosses(nTime, deltaTime) {
             bs.vx = (bs.vx + vx);
             bs.vy = (bs.vy + vy);
         } else {
-            while (!bs.target || Math.hypot(bs.target.x - bs.x, bs.target.y - bs.y) < bs.scale)
+            while (!bs.target || Math.hypot(bs.target.x - bs.x, bs.target.y - bs.y) < (bs.w + bs.h) / 2)
                 bs.target = {
                     x: Math.random() * mapW,
                     y: Math.random() * mapH
@@ -1056,8 +768,8 @@ function updateBosses(nTime, deltaTime) {
             bs.angle += Math.clamp(Math.angleDiff(bs.angle, tAngle), -deltaTime * bs.turnSpeed, deltaTime * bs.turnSpeed);
             let vx = Math.cos(bs.angle) * bs.maxTrust * deltaTime;
             let vy = Math.sin(bs.angle) * bs.maxTrust * deltaTime;
-            bs.vx = bs.vx + vx;
-            bs.vy = bs.vy + vy;
+            bs.vx += vx;
+            bs.vy += vy;
         }
 
         if (bs.vx !== 0 || bs.vy !== 0) {
@@ -1072,13 +784,13 @@ function updateBosses(nTime, deltaTime) {
 
         for (const wp of bs.weapons) {
             if (bs.noRotateTexture) {
-                wp.x = bs.x + wp.ox;
-                wp.y = bs.y + wp.oy;
+                wp.mx = bs.x + wp.x;
+                wp.my = bs.y + wp.y;
             } else {
-                const wDist = Math.hypot(wp.ox, wp.oy);
-                const wAngle = bs.angle + Math.atan2(wp.oy, wp.ox) + Math.PI2;
-                wp.x = bs.x + Math.cos(wAngle) * wDist;
-                wp.y = bs.y + Math.sin(wAngle) * wDist;
+                const wDist = Math.hypot(wp.x, wp.y);
+                const wAngle = bs.angle + Math.atan2(wp.y, wp.x) + Math.PI2;
+                wp.mx = bs.x + Math.cos(wAngle) * wDist;
+                wp.my = bs.y + Math.sin(wAngle) * wDist;
             }
             let targetPlayer;
             if (debug.player3Boss && bs === bosses[0]) {
@@ -1093,7 +805,7 @@ function updateBosses(nTime, deltaTime) {
                     .reduce((prev, pl, pi) => {
                         if (pl.isDead)
                             return prev;
-                        const distance = Math.hypot(pl.x - wp.x, pl.y - wp.y);
+                        const distance = Math.hypot(pl.x - wp.mx, pl.y - wp.my);
                         if (distance < wp.radius && (!prev || prev.distance > distance)) {
                             prev = {
                                 pl,
@@ -1105,7 +817,7 @@ function updateBosses(nTime, deltaTime) {
                     ?.pl;
             }
             if (targetPlayer) {
-                const tAngle = Math.atan2(targetPlayer.y - wp.y, targetPlayer.x - wp.x);
+                const tAngle = Math.atan2(targetPlayer.y - wp.my, targetPlayer.x - wp.mx);
                 const angleDiff = Math.angleDiff(tAngle, bs.noRotateTexture ? wp.angle : (bs.angle - wp.angle));
                 wp.angle += Math.clamp(angleDiff, -deltaTime * wp.maxTurnSpeed, deltaTime * wp.maxTurnSpeed);
                 const mapAngle = bs.angle - wp.angle;
@@ -1115,8 +827,8 @@ function updateBosses(nTime, deltaTime) {
                     let vx = Math.cos(mapAngle) * rocketPrefab.maxSpeed;
                     let vy = Math.sin(mapAngle) * rocketPrefab.maxSpeed;
                     rockets.push(Object.assign({}, rocketPrefab, {
-                        x: wp.x,
-                        y: wp.y,
+                        x: wp.mx,
+                        y: wp.my,
                         vx,
                         vy,
                         angle: mapAngle,
@@ -1143,10 +855,10 @@ function drawBosses(nTime, deltaTime) {
         let y = screenY(bs.y);
 
         const bAngle = bs.noRotateTexture ? -Math.PI2 : bs.angle;
-        drawImage(imgs[bs.texture], x, y, bAngle + Math.PI2, zz * bs.scale, null, 1);
+        drawImage(imgs[bs.texture], x, y, bAngle + Math.PI2, zz * bs.w, zz * bs.h, 1);
 
         for (const wp of bs.weapons) {
-            drawImage(imgs[wp.texture || "towerGeneral"], screenX(wp.x), screenY(wp.y), bAngle - wp.angle + Math.PI2, zz * wp.scale);
+            drawImage(imgs[wp.texture || "towerGeneral"], screenX(wp.mx), screenY(wp.my), bAngle - wp.angle + Math.PI2, zz * wp.scale);
         }
     }
 }
@@ -1286,13 +998,14 @@ function drawCheckpoints(nTime, deltaTime) {
         function highlight(color, p) {
             ctx.fillStyle = color;
             const angle = (nTime / 1000) % Math.doublePI;
+            const halfWeight = zz * 0.07;
             ctx.beginPath();
-            ctx.arc(x, y, radius * 1.1, (p * step) + angle, ((p + 1) * step) + angle);
-            ctx.arc(x, y, radius * 0.9, ((p + 1) * step) + angle, (p * step) + angle, true);
+            ctx.arc(x, y, radius + halfWeight, (p * step) + angle, ((p + 1) * step) + angle);
+            ctx.arc(x, y, radius - halfWeight, ((p + 1) * step) + angle, (p * step) + angle, true);
             ctx.fill();
             ctx.beginPath();
-            ctx.arc(x, y, radius * 1.1, ((p + players.length) * step) + angle, ((p + players.length + 1) * step) + angle);
-            ctx.arc(x, y, radius * 0.9, ((p + players.length + 1) * step) + angle, ((p + players.length) * step) + angle, true);
+            ctx.arc(x, y, radius + halfWeight, ((p + players.length) * step) + angle, ((p + players.length + 1) * step) + angle);
+            ctx.arc(x, y, radius - halfWeight, ((p + players.length + 1) * step) + angle, ((p + players.length) * step) + angle, true);
             ctx.fill();
         }
     }
@@ -1354,12 +1067,15 @@ function drawImage(image, x, y, angleInRadians = 0, w = 1, h = null, alpha = 1) 
 function boomRocket(rocketId) {
     const rk = rockets[rocketId];
     if (rk.boomPrefab) {
-        booms.push(Object.assign({}, rk.boomPrefab, {
-            x: rk.x,
-            y: rk.y,
-            ax: rk.vx,
-            ay: rk.vy
-        }));
+        const boom = new Boom(
+            rk.x,
+            rk.y,
+            rk.boomPrefab.radius,
+            rk.boomPrefab.lifetime,
+            rk.boomPrefab.hideTime,
+            rk.boomPrefab.hue
+        );
+        booms.push(boom);
     }
     rockets.splice(rocketId, 1);
 }
@@ -1388,22 +1104,29 @@ function killPlayer(playerId) {
     pl.trust = 0;
     pl.isDead = true;
 
-    booms.push(Object.assign({}, playerBoomPrefab, {
-        x: pl.x,
-        y: pl.y,
-        ax: pl.vx,
-        ay: pl.vy
-    }));
+    const boom = new Boom(
+        pl.x,
+        pl.y,
+        playerBoomPrefab.radius,
+        playerBoomPrefab.lifetime,
+        playerBoomPrefab.hideTime,
+        playerBoomPrefab.hue
+    );
+    booms.push(boom);
 
     for (let c = 0; c < checkpoints.length;) {
         if (!passCheckpoint(c, playerId, 0))
             c++;
     }
+
+    if (players.every(pl => pl.isDead)) {
+        setLevelsMenu(true);
+    }
 }
 
 function bossBattle() {
     isBossbattle = true;
-    enemies.length = 0;
+    weapons.length = 0;
     checkpoints.length = 0;
     for (let p = 0; p < players.length; p++) {
         players[p].isDead = false;
@@ -1490,3 +1213,79 @@ function onMouseWheel(e) {
 }
 
 addEventListener("load", main);
+
+export class Boss {
+    x = 15;
+    y = -5;
+    angle = Math.PI2;
+    maxTrust = 10;
+    maxSpeed = 2;
+    turnSpeed = 0.1 * Math.doublePI;
+    noRotateTexture = false;
+    texture = "ship2";
+    w = 5;
+    h = 5;
+    weapons = [];
+
+    vx = 0;
+    vy = 0;
+    trust = 0;
+    rotate = 0;
+    target = null;
+
+    constructor(x, y, angle, maxTrust, maxSpeed, turnSpeed, texture, w, h, noRotateTexture, weapons) {
+        this.x = x;
+        this.y = y;
+        this.angle = angle;
+        this.maxTrust = maxTrust;
+        this.maxSpeed = maxSpeed;
+        this.turnSpeed = turnSpeed;
+        this.texture = texture;
+        this.w = w;
+        this.h = h;
+        this.noRotateTexture = noRotateTexture;
+        this.weapons = weapons;
+    }
+}
+
+export class Weapon {
+    x;
+    y;
+    angle;
+    maxTurnSpeed;
+    radius;
+    maxReload;
+    maxAngleDiff;
+    rocketPrefab;
+    texture;
+
+    scale = 1;
+    reload = 0;
+    targetPlayer = undefined;
+
+    constructor(x, y, angle, rocketPrefab, maxTurnSpeed, radius, maxReload, maxAngleDiff, texture, reload) {
+        this.x = x;
+        this.y = y;
+        this.rocketPrefab = rocketPrefab;
+        this.maxTurnSpeed = maxTurnSpeed;
+        this.radius = radius;
+        this.maxReload = maxReload;
+        this.maxAngleDiff = maxAngleDiff;
+        this.angle = angle;
+        this.texture = texture;
+        this.reload = reload !== undefined ? reload : maxReload / 2 + 5;
+    }
+}
+
+export class Checkpoint {
+    radius = 0.75;
+    x;
+    y;
+    checkedPlayers = [];
+
+    constructor(x, y, radius) {
+        this.x = x;
+        this.y = y;
+        this.radius = radius;
+    }
+}
