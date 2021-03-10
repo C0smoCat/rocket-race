@@ -4,11 +4,14 @@ downloadImg("towerGeneral");
 downloadImg("towerSniper");
 downloadImg("towerHeavy");
 downloadImg("towerPlatform");
+downloadImg("towerPulse");
 downloadImg("rocket");
 downloadImg("player");
 downloadImg("ship2");
 downloadImg("ship3");
 downloadImg("ship4");
+downloadImg("ship5");
+downloadImg("ship6");
 
 function downloadImg(path) {
     let img = new Image();

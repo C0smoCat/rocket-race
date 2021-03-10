@@ -10,7 +10,7 @@ export default {
     },
     players: [
         { x: 10, y: 10, hue: 0, angle: 0 },
-        { x: 20, y: 20, hue: 180, angle: 180 }
+        { x: 20, y: 20, hue: 240, angle: 180 }
     ],
     weapons: [
         { prefab: 0, x: 10, y: 20 },
@@ -146,8 +146,8 @@ export default {
             texture: "ship4",
             w: 2,
             weapons: [
-                { x: 0, y:  1, angle: 270, prefab: 3 },
-                { x: 0, y: -1, angle:   0, prefab: 3 }
+                { x: 0, y: 1, angle: 270, prefab: 3 },
+                { x: 0, y: -1, angle: 0, prefab: 3 }
             ]
         }
     ],
@@ -178,25 +178,9 @@ export default {
         }
     ],
     boomPrefabs: [
-        {
-            radius: 2,
-            lifetime: 3,
-            hideTime: 1
-        },
-        {
-            radius: 2,
-            lifetime: 1,
-            hideTime: 0.5
-        },
-        {
-            radius: 3,
-            lifetime: 1,
-            hideTime: 0.2
-        },
-        {
-            radius: 5,
-            lifetime: 5,
-            hideTime: 1
-        }
+        { radius: 2, lifetime: 3, hideTime: 1 },
+        { radius: 2, lifetime: 1, hideTime: 0.5 },
+        { radius: 3, lifetime: 1, hideTime: 0.2 },
+        { radius: 5, lifetime: 5, hideTime: 1 }
     ]
 };

@@ -63,7 +63,7 @@ export default {
                 turnSpeed: 0,
                 radius: 0,
                 boomPrefab: { radius: 1, lifetime: 0.4, hideTime: 0.2 }
-            },
+            }
         }
     ],
     checkpoints: [
@@ -107,10 +107,10 @@ export default {
                         lifetime: 3,
                         turnSpeed: 0,
                         radius: 0,
-                        boomPrefab: { radius: 2, lifetime: 7, hideTime: 1, }
-                    },
+                        boomPrefab: { radius: 2, lifetime: 7, hideTime: 1 }
+                    }
                 }
-            ],
+            ]
         },
         {
             x: -5,
@@ -120,18 +120,13 @@ export default {
             trust: 10,
             turnSpeed: 36,
             weapons: [
+                { prefab: 3, x: 0, y: 1, angle: 270 },
                 {
-                    x: 0,
-                    y: 1,
-                    angle: 270,
-                    prefab: 3
-                },
-                {
+                    prefab: 3,
                     x: 0,
                     y: -1,
                     angle: 270,
-                    reload: 1.5,
-                    prefab: 3
+                    reload: 1.5
                 }
             ],
             texture: "ship4",
@@ -165,25 +160,9 @@ export default {
         }
     ],
     boomPrefabs: [
-        {
-            radius: 2,
-            lifetime: 3,
-            hideTime: 1
-        },
-        {
-            radius: 2,
-            lifetime: 1,
-            hideTime: 0.5
-        },
-        {
-            radius: 3,
-            lifetime: 1,
-            hideTime: 0.2
-        },
-        {
-            radius: 5,
-            lifetime: 5,
-            hideTime: 1
-        }
+        { radius: 2, lifetime: 3, hideTime: 1 },
+        { radius: 2, lifetime: 1, hideTime: 0.5 },
+        { radius: 3, lifetime: 1, hideTime: 0.2 },
+        { radius: 5, lifetime: 5, hideTime: 1 }
     ]
 };

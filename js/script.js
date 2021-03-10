@@ -41,6 +41,10 @@ const levels = [
     {
         title: "Level 2",
         path: "./levels/level-2.js"
+    },
+    {
+        title: "Level 3",
+        path: "./levels/level-3.js"
     }
 ];
 let graphicScale = 1.00;
@@ -235,7 +239,8 @@ async function loadLevel(levelPath) {
             w.maxReload || 4,
             Math.deg2rad(w.maxAngleDiff || 45),
             w.texture,
-            w.reload
+            w.reload,
+            w.scale !== undefined ? w.scale : 1
         );
     }
 
@@ -1258,12 +1263,12 @@ export class Weapon {
     maxAngleDiff;
     rocketPrefab;
     texture;
+    scale;
 
-    scale = 1;
     reload = 0;
     targetPlayer = undefined;
 
-    constructor(x, y, angle, rocketPrefab, maxTurnSpeed, radius, maxReload, maxAngleDiff, texture, reload) {
+    constructor(x, y, angle, rocketPrefab, maxTurnSpeed, radius, maxReload, maxAngleDiff, texture, reload, scale) {
         this.x = x;
         this.y = y;
         this.rocketPrefab = rocketPrefab;
@@ -1273,6 +1278,7 @@ export class Weapon {
         this.maxAngleDiff = maxAngleDiff;
         this.angle = angle;
         this.texture = texture;
+        this.scale = scale;
         this.reload = reload !== undefined ? reload : maxReload / 2 + 5;
     }
 }
