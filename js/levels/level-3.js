@@ -1,44 +1,44 @@
 export default {
-    mapW: 30,
+    mapW: 40,
     mapH: 30,
     cam: {
-        x: 15,
+        x: 20,
         y: 15,
-        scale: 20,
+        scale: 23,
         minScale: 5,
-        maxScale: 30
+        maxScale: 35
     },
     players: [
-        { x: 12, y: 12, hue: 0, angle: 225 },
-        { x: 18, y: 18, hue: 240, angle: 45 },
-        { x: 12, y: 18, hue: 140, angle: 135 },
-        { x: 18, y: 12, hue: 190, angle: 315 }
+        { x: 19, y: 14, hue: 0, angle: 225 },
+        { x: 21, y: 16, hue: 240, angle: 45 },
+        { x: 19, y: 16, hue: 140, angle: 135 },
+        { x: 21, y: 14, hue: 190, angle: 315 }
     ],
     weapons: [
-        { prefab: 0, x: 5, y: 5 },
-        { prefab: 0, x: 10, y: 5 },
-        { prefab: 0, x: 5, y: 10 },
-        { prefab: 0, x: 10, y: 10 },
+        { prefab: 0, x: 7, y: 5 },
+        { prefab: 0, x: 15, y: 5 },
+        { prefab: 0, x: 7, y: 10 },
+        { prefab: 0, x: 15, y: 10 },
 
+        { prefab: 0, x: 33, y: 25 },
         { prefab: 0, x: 25, y: 25 },
-        { prefab: 0, x: 20, y: 25 },
         { prefab: 0, x: 25, y: 20 },
-        { prefab: 0, x: 20, y: 20 },
+        { prefab: 0, x: 33, y: 20 },
 
-        { prefab: 0, x: 5, y: 25 },
-        { prefab: 0, x: 10, y: 25 },
-        { prefab: 0, x: 5, y: 20 },
-        { prefab: 0, x: 10, y: 20 },
+        { prefab: 0, x: 7, y: 25 },
+        { prefab: 0, x: 15, y: 25 },
+        { prefab: 0, x: 7, y: 20 },
+        { prefab: 0, x: 15, y: 20 },
 
         { prefab: 0, x: 25, y: 5 },
-        { prefab: 0, x: 20, y: 5 },
+        { prefab: 0, x: 33, y: 5 },
         { prefab: 0, x: 25, y: 10 },
-        { prefab: 0, x: 20, y: 10 },
+        { prefab: 0, x: 33, y: 10 },
 
-        { prefab: 1, x: 7.5, y: 15 },
-        { prefab: 1, x: 15, y: 7.5 },
-        { prefab: 1, x: 22.5, y: 15 },
-        { prefab: 1, x: 15, y: 22.5 }
+        { prefab: 1, x: 11, y: 15 },
+        { prefab: 1, x: 20, y: 7.5 },
+        { prefab: 1, x: 29, y: 15 },
+        { prefab: 1, x: 20, y: 22.5 }
     ],
     weaponPrefabs: [
         {
@@ -79,24 +79,24 @@ export default {
         }
     ],
     checkpoints: [
-        { x: 22.5, y: 22.5 },
-        { x: 7.5, y: 7.5 },
-        { x: 7.5, y: 22.5 },
-        { x: 22.5, y: 7.5 },
-        { x: 15, y: 15 },
+        { x: 29, y: 22.5 },
+        { x: 11, y: 7.5 },
+        { x: 11, y: 22.5 },
+        { x: 29, y: 7.5 },
         { x: 20, y: 15 },
-        { x: 10, y: 15 },
-        { x: 15, y: 10 },
-        { x: 15, y: 20 },
+        { x: 25, y: 15 },
+        { x: 15, y: 15 },
+        { x: 20, y: 10 },
+        { x: 20, y: 20 },
 
-        { x: 15, y: 27 },
-        { x: 15, y: 3 },
-        { x: 27, y: 15 },
+        { x: 20, y: 27 },
+        { x: 20, y: 3 },
+        { x: 37, y: 15 },
         { x: 3, y: 15 },
 
         { x: 2, y: 28 },
-        { x: 28, y: 2 },
-        { x: 28, y: 28 },
+        { x: 38, y: 2 },
+        { x: 38, y: 28 },
         { x: 2, y: 2 }
     ],
     bosses: [
@@ -205,7 +205,7 @@ export default {
             boomPrefab: 1
         },
         {
-            speed: 15,
+            speed: 25,
             lifetime: 5,
             radius: 0,
             turnSpeed: 0,

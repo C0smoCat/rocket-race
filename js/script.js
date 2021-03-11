@@ -6,6 +6,7 @@ import { simplex2 } from "./perlin.js";
 import trackKeys from "./trackKeys.js";
 import { Player } from "./player.js";
 import { Boom } from "./boom.js";
+import { Rocket } from "./rocket.js";
 
 const arrows = trackKeys({
     // Player 1
@@ -575,18 +576,19 @@ function updateWeapons(nTime, deltaTime) {
             const angleDiff = Math.angleDiff(en.angle, tAngle);
             en.angle += Math.clamp(angleDiff, -deltaTime * en.maxTurnSpeed, deltaTime * en.maxTurnSpeed);
 
-            if (en.reload <= 0 && Math.abs(angleDiff) <= en.maxAngleDiff) {
-                const rocketPrefab = Number.isInteger(en.rocketPrefab) ? rocketPrefabs[en.rocketPrefab] : en.rocketPrefab;
-                let vx = Math.cos(en.angle) * rocketPrefab.maxSpeed;
-                let vy = Math.sin(en.angle) * rocketPrefab.maxSpeed;
-                rockets.push(Object.assign({}, rocketPrefab, {
-                    x: en.x,
-                    y: en.y,
-                    vx,
-                    vy,
-                    angle: en.angle,
-                    line: []
-                }));
+            if (en.reload <= 0 && Math.abs(angleDiff) <= en.maxAngleDiff / 2) {
+                const rocket = new Rocket(
+                    en.x,
+                    en.y,
+                    en.angle,
+                    en.rocketPrefab.maxSpeed,
+                    en.rocketPrefab.lifetime,
+                    en.rocketPrefab.radius,
+                    en.rocketPrefab.maxTurnSpeed,
+                    en.rocketPrefab.hue,
+                    en.rocketPrefab.boomPrefab
+                );
+                rockets.push(rocket);
                 en.reload += en.maxReload;
             }
         }
@@ -608,7 +610,7 @@ function drawWeapons(nTime, deltaTime) {
                 ctx.fillStyle = "#00ff0022";
                 ctx.beginPath();
                 ctx.moveTo(screenX(en.x), screenY(en.y));
-                ctx.arc(screenX(en.x), screenY(en.y), en.radius * zz, en.angle - en.maxAngleDiff, en.angle + en.maxAngleDiff);
+                ctx.arc(screenX(en.x), screenY(en.y), en.radius * zz, en.angle - en.maxAngleDiff / 2, en.angle + en.maxAngleDiff / 2);
                 ctx.lineTo(screenX(en.x), screenY(en.y));
                 ctx.stroke();
                 ctx.fill();

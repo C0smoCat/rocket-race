@@ -143,7 +143,7 @@ export default {
             boomPrefab: 1
         },
         {
-            speed: 15,
+            speed: 25,
             lifetime: 5,
             radius: 0,
             turnSpeed: 0,
