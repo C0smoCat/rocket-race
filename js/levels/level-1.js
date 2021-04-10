@@ -4,7 +4,7 @@ export default {
     cam: {
         x: 15,
         y: 15,
-        scale: 20,
+        scale: 16,
         minScale: 5,
         maxScale: 30
     },

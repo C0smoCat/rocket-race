@@ -76,7 +76,7 @@ const mouse = {
 let cam = {
     x: 15,
     y: 15,
-    scale: 20,
+    scale: 16,
     minScale: 5,
     maxScale: 30
 };
@@ -285,7 +285,7 @@ function setLevelsMenu(enable) {
 
 function draw(time) {
     let nTime = Date.now();
-    let deltaTime = (nTime - lastUpd) / 1000;
+    let deltaTime = Math.clamp((nTime - lastUpd) / 1000, 0, 100);
 
     ctx.lineCap = "round";
     ctx.lineJoin = "round";
@@ -502,12 +502,8 @@ function updatePlayers(nTime, deltaTime) {
         if (pl.isDead)
             continue;
 
-        const deadBoom = booms.findIndex((bm) => {
-            const distance = Math.hypot(bm.x - pl.x, bm.y - pl.y);
-            return (distance < bm.radius);
-        });
-
-        if (deadBoom >= 0) {
+        const boomCollision = booms.some((bm) => Math.hypot(bm.x - pl.x, bm.y - pl.y) < bm.radius);
+        if (boomCollision) {
             killPlayer(p);
         }
 
@@ -636,18 +632,10 @@ function updateRockets(nTime, deltaTime) {
             if (rk.targetPlayer) {
                 isNeedBoom = Math.hypot(rk.targetPlayer.x - rk.x, rk.targetPlayer.y - rk.y) < rk.targetPlayer.scale;
             } else if (!(rk.radius && rk.radius > 0 && rk.maxTurnSpeed && rk.maxTurnSpeed > 0)) {
-                isNeedBoom = players.findIndex(pl => {
-                    if (pl.isDead)
-                        return false;
-                    const distance = Math.hypot(pl.x - rk.x, pl.y - rk.y);
-                    return (distance < pl.scale);
-                }) >= 0;
+                isNeedBoom = players.some(pl => !pl.isDead && Math.hypot(pl.x - rk.x, pl.y - rk.y) < pl.scale);
             }
             if (!isNeedBoom) {
-                isNeedBoom = booms.findIndex(bm => {
-                    const distance = Math.hypot(bm.x - rk.x, bm.y - rk.y);
-                    return (distance < bm.radius);
-                }) >= 0;
+                isNeedBoom = booms.some(bm => Math.hypot(bm.x - rk.x, bm.y - rk.y) < bm.radius);
             }
             if (isNeedBoom) {
                 boomRocket(i);
@@ -1162,7 +1150,7 @@ function updateZZ() {
     let h = box.top + box.bottom * graphicScale;
     canv.width = w;
     canv.height = h;
-    zz = Math.max(w, h) / (cam.scale * 2);
+    zz = Math.min(w, h) / (cam.scale * 2);
     wScale = w / zz;
     hScale = h / zz;
 }
