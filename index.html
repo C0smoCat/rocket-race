@@ -6,6 +6,7 @@
         <script>
             const debug = {
                 drawWeapons: false,
+                drawReload: true,
                 booms: false,
                 player3Boss: false,
                 rockets: false,
@@ -13,7 +14,10 @@
                 fps: true,
                 playerMouseControl: false,
                 extraPlayers: 0,
-                playerBots: false
+                drawInput: false,
+                playerBots: false,
+                playerImmutable: false,
+                easyInputMode: true
             };
         </script>
         <script type="module" src="js/script.js"></script>
@@ -26,8 +30,22 @@
         <noscript>
             <p>Ваш браузер не поддерживает JavaScript!</p>
         </noscript>
-        <div id="menu-levels">
-
+        <div id="menu">
+            <a id="downloadReplay" class="replay">
+                Save
+                Replay
+            </a>
+            <button id="watchReplay" class="replay">
+                Watch
+                Replay
+            </button>
+            <input id="openReplay" type="file" accept="application/octet-stream">
+            <label id="openReplayLabel" class="replay" for="openReplay">
+                Open
+                Replay
+            </label>
+            <div id="menu-levels">
+            </div>
         </div>
     </body>
 </html>

@@ -29,6 +29,7 @@ export default {
             maxReload: 2,
             maxAngleDiff: 75,
             texture: "towerGeneral",
+            sound: "s1",
             rocketPrefab: 0
         },
         {
@@ -37,6 +38,7 @@ export default {
             maxReload: 4,
             maxAngleDiff: 4,
             texture: "towerSniper",
+            sound: "s2",
             rocketPrefab: 1
         },
         {
@@ -45,6 +47,7 @@ export default {
             maxReload: 10,
             maxAngleDiff: 75,
             texture: "towerHeavy",
+            sound: "s3",
             rocketPrefab: 2
         },
         {
@@ -53,6 +56,7 @@ export default {
             maxReload: 1,
             maxAngleDiff: 36,
             texture: "towerSniper",
+            sound: "s4",
             rocketPrefab: {
                 hue: 280,
                 speed: 15,
@@ -72,7 +76,6 @@ export default {
         { x: 15, y: 2 },
         { x: 5, y: 25 },
         { x: 15, y: 28 },
-        { x: 15, y: 15 },
         { x: 20, y: 15 },
         { x: 10, y: 15 },
         { x: 15, y: 10 },
@@ -83,6 +86,14 @@ export default {
         { x: 5, y: 10 },
         { x: 28, y: 28 },
         { x: 2, y: 2 }
+    ],
+    gravity: [
+        {
+            x: 15,
+            y: 15,
+            radius: 4,
+            force: 20
+        }
     ],
     bosses: [
         {
@@ -182,5 +193,11 @@ export default {
         { radius: 2, lifetime: 1, hideTime: 0.5 },
         { radius: 3, lifetime: 1, hideTime: 0.2 },
         { radius: 5, lifetime: 5, hideTime: 1 }
+    ],
+    sounds: [
+        { name: "s1", url: "sounds/s1.ogg" },
+        { name: "s2", url: "sounds/s2.ogg" },
+        { name: "s3", url: "sounds/s3.ogg" },
+        { name: "s4", url: "sounds/s4.ogg" }
     ]
 };

@@ -6,34 +6,49 @@ import { simplex2 } from "./perlin.js";
 import trackKeys from "./trackKeys.js";
 import { Player } from "./player.js";
 import { Boom } from "./boom.js";
+import { ByteStream } from "./byteStream.js";
+import * as Sounds from "./sounds.js";
 import { Rocket } from "./rocket.js";
 
+const REPLAY_VERSION = 0;
+
+let replayStream = null;
+let replayInfo = null;
+let viewReplayMode = false;
+const PLAYER_ID = getPlayerId();
 const arrows = trackKeys({
     // Player 1
     left1: [ "KeyA" ],
-    right1: [ "KeyD" ],
+    down1: [ "KeyS" ],
     up1: [ "KeyW" ],
+    right1: [ "KeyD" ],
 
     // Player 2
     left2: [ "ArrowLeft" ],
-    right2: [ "ArrowRight" ],
+    down2: [ "ArrowDown" ],
     up2: [ "ArrowUp" ],
+    right2: [ "ArrowRight" ],
 
     // Player 3
     left3: [ "KeyJ" ],
-    right3: [ "KeyL" ],
+    down3: [ "KeyK" ],
     up3: [ "KeyI" ],
+    right3: [ "KeyL" ],
 
     // Player 4
     left4: [ "Numpad4" ],
-    right4: [ "Numpad6" ],
+    down4: [ "Numpad5" ],
     up4: [ "Numpad8" ],
+    right4: [ "Numpad6" ],
 
     pause: [ "Escape" ],
     bossbattle: [ "Backquote" ]
 });
 
 let menuSelectLevel = undefined;
+let elDownloadReplay = undefined;
+let elWatchReplay = undefined;
+let menu = undefined;
 const levels = [
     {
         title: "Level 1",
@@ -46,6 +61,10 @@ const levels = [
     {
         title: "Level 3",
         path: "./levels/level-3.js"
+    },
+    {
+        title: "Level 4",
+        path: "./levels/level-4.js"
     }
 ];
 let graphicScale = 1.00;
@@ -56,8 +75,10 @@ let wScale = 1;
 let hScale = 1;
 let zz = 0;
 let ctx;
-let isPlay = true;
+let isPlay = false;
 let isBossbattle = false;
+
+let uniInput = [];
 
 let mapW = 30;
 let mapH = 30;
@@ -88,13 +109,30 @@ let checkpoints = [];
 let bosses = [];
 const rockets = [];
 const booms = [];
+const gravityHoles = [];
+
+let backgroundMusic = [
+    "sounds/m1.mp3",
+    "sounds/m2.mp3",
+    "sounds/m3.mp3",
+    "sounds/m4.mp3",
+    "sounds/m5.mp3",
+    "sounds/m6.mp3"
+];
 
 function main() {
+    console.log("pid", PLAYER_ID);
     menuSelectLevel = document.getElementById("menu-levels");
-    for (const level of levels) {
+    menu = document.getElementById("menu");
+    elDownloadReplay = document.getElementById("downloadReplay");
+    elWatchReplay = document.getElementById("watchReplay");
+    document.getElementById("openReplay").addEventListener("change", openReplay, false);
+
+    for (let i = 0; i < levels.length; i++) {
+        const level = levels[i];
         const btn = document.createElement("button");
         btn.textContent = level.title;
-        btn.addEventListener("click", () => loadLevel(level.path));
+        btn.addEventListener("click", () => loadLevel(i));
         menuSelectLevel.appendChild(btn);
     }
 
@@ -123,9 +161,42 @@ function main() {
     loadLevel(null)
         .then(() => requestAnimationFrame(draw))
         .catch(e => console.error(e));
+
+    let downloaded = 0;
+    Promise.all(
+        backgroundMusic.map((ms) =>
+            Sounds.loadSound(ms, ms)
+                .then(() => {
+                    downloaded++;
+                    console.log(`music downloaded: ${ downloaded } / ${ backgroundMusic.length }`);
+                    nextMusic();
+                })
+        )
+    )
+        .then(() => console.log("music downloaded"));
+
+    let userInteractiveStart = false;
+    let musicStarted = false;
+    const nextMusic = (force) => {
+        if (force || userInteractiveStart && !musicStarted) {
+            const downloaded = backgroundMusic.filter(ms => Sounds.isLoaded(ms));
+            if (downloaded.length > 0) {
+                const music = downloaded.randomItem();
+                Sounds.playSound(music, null, () => nextMusic(true));
+                document.removeEventListener("mouseup", nextMusic);
+            }
+            musicStarted = true;
+        }
+    };
+    document.addEventListener("mouseup", () => {
+        userInteractiveStart = true;
+        nextMusic();
+    });
+
+    setInterval(update, 1000 / 60);
 }
 
-async function loadLevel(levelPath) {
+async function loadLevel(levelId = null) {
     isPlay = false;
     rockets.length = 0;
     booms.length = 0;
@@ -133,16 +204,32 @@ async function loadLevel(levelPath) {
     weapons.length = 0;
     checkpoints.length = 0;
     bosses.length = 0;
+    gravityHoles.length = 0;
     rocketPrefabs.length = 0;
     mapW = 30;
     mapH = 30;
 
-    if (levelPath) {
+    if (levelId !== null) {
         try {
+            const levelPath = levels[levelId].path;
             const level = (await import(levelPath)).default;
 
             if (level) {
                 cam = Object.assign({}, level.cam);
+                if (level.sounds)
+                    level.sounds.map(sd => Sounds.loadSound(sd.name, sd.url));
+
+                if (level.gravity) {
+                    for (const gravityHole of level.gravity) {
+                        gravityHoles.push({
+                            x: gravityHole.x,
+                            y: gravityHole.y,
+                            radius: gravityHole.radius || 3,
+                            force: gravityHole.force || 1
+                        });
+                    }
+                }
+
                 for (const pl of level.players) {
                     const player = new Player(
                         pl.x,
@@ -167,21 +254,23 @@ async function loadLevel(levelPath) {
                     checkpoints.push(checkpoint);
                 }
 
-                for (const bs of level.bosses) {
-                    const boss = new Boss(
-                        bs.x,
-                        bs.y,
-                        Math.deg2rad(bs.angle || 0),
-                        bs.trust || 10,
-                        bs.speed || 2,
-                        Math.deg2rad(bs.turnSpeed || 36),
-                        bs.texture,
-                        bs.w || bs.scale || 5,
-                        bs.h || bs.scale || 5,
-                        bs.noRotateTexture || false,
-                        bs.weapons.map(w => getWeapon(level, w))
-                    );
-                    bosses.push(boss);
+                if (level.bosses) {
+                    for (const bs of level.bosses) {
+                        const boss = new Boss(
+                            bs.x,
+                            bs.y,
+                            Math.deg2rad(bs.angle || 0),
+                            bs.trust || 10,
+                            bs.speed || 2,
+                            Math.deg2rad(bs.turnSpeed || 36),
+                            bs.texture,
+                            bs.w || bs.scale || 5,
+                            bs.h || bs.scale || 5,
+                            bs.noRotateTexture || false,
+                            bs.weapons.map(w => getWeapon(level, w))
+                        );
+                        bosses.push(boss);
+                    }
                 }
 
                 rocketPrefabs = level.rocketPrefabs.slice();
@@ -198,8 +287,18 @@ async function loadLevel(levelPath) {
                 }
             }
             setLevelsMenu(false);
+            replayStream = new ByteStream(5000);
+            replayStream.pushUint16(REPLAY_VERSION); // replay version
+            replayStream.pushUint32(Math.floor(Date.now() / 1000)); // user time
+            replayStream.pushUint8(levelId); // level id
+            replayStream.pushUint32(PLAYER_ID); // player id
+            replayStream.pushUint32(0); // random seed
+            replayInfo = {
+                levelId: levelId
+            };
+            viewReplayMode = false;
         } catch (e) {
-            console.error(`failed load level "${ levelPath }"`, e);
+            console.error(`failed load level ${ levelId }`, e);
         }
     }
 
@@ -224,6 +323,7 @@ async function loadLevel(levelPath) {
     lastUpd = Date.now();
     isBossbattle = false;
     isPlay = true;
+    Sounds.playSound("waveUp");
 
     function getWeapon(level, w) {
         if (w.prefab !== undefined) {
@@ -241,7 +341,8 @@ async function loadLevel(levelPath) {
             Math.deg2rad(w.maxAngleDiff || 45),
             w.texture,
             w.reload,
-            w.scale !== undefined ? w.scale : 1
+            w.scale !== undefined ? w.scale : 1,
+            w.sound
         );
     }
 
@@ -279,8 +380,49 @@ async function loadLevel(levelPath) {
     }
 }
 
+async function openReplay(e) {
+    const file = e.target.files[0];
+    if (!file)
+        return;
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+        await watchReplay(new Uint8Array(e.target.result));
+    };
+    reader.readAsArrayBuffer(file);
+}
+
+async function watchReplay(replayBinary) {
+    const replay = new ByteStream(replayBinary.buffer);
+
+    const replayVersion = replay.shiftUint16();
+    if (replayVersion === REPLAY_VERSION) {
+        if (replay.getUint8(replayBinary.length - 1) !== 0xFF || replay.getUint8(replayBinary.length - 11) !== 0xFF)
+            throw new Error(`Replay parse error: wrong magic`);
+
+        const userTime = replay.shiftUint32();
+        const levelId = replay.shiftUint8();
+        const playerId = replay.shiftUint32();
+        const randomSeed = replay.shiftUint32();
+        const userTimeEnd = replay.getUint32(replayBinary.length - 10);
+        const levelId2 = replay.getUint8(replayBinary.length - 6);
+        const playerId2 = replay.getUint32(replayBinary.length - 5);
+
+        if (levelId !== levelId2 || playerId !== playerId2 || userTime >= userTimeEnd)
+            throw new Error(`Replay parse error: wrong meta`);
+
+        isPlay = false;
+        await loadLevel(levelId);
+        viewReplayMode = true;
+        replayStream = replay;
+        isPlay = true;
+
+        console.log(`Watching replay ${ playerId }-${ userTime }, levelId: ${ levelId }`);
+    } else
+        throw new Error(`Replay parse error: wrong version`);
+}
+
 function setLevelsMenu(enable) {
-    menuSelectLevel.style.display = enable ? "block" : "none";
+    menu.style.display = enable ? "block" : "none";
 }
 
 function draw(time) {
@@ -290,6 +432,36 @@ function draw(time) {
     ctx.lineCap = "round";
     ctx.lineJoin = "round";
 
+    drawMap(nTime, deltaTime);
+    drawMapGrid(nTime, deltaTime);
+    drawGravityHoles(nTime, deltaTime);
+    drawCheckpoints(nTime, deltaTime);
+    drawWeapons(nTime, deltaTime);
+    drawRockets(nTime, deltaTime);
+    drawPlayers(nTime, deltaTime);
+    drawBosses(nTime, deltaTime);
+    drawBooms(nTime, deltaTime);
+    drawUI(nTime, deltaTime);
+
+    lastUpd = nTime;
+    requestAnimationFrame(draw);
+}
+
+function getPlayerId() {
+    let playerId = getCookie("pid");
+    if (playerId)
+        return +playerId;
+    else {
+        playerId = Math.randomInt(0, 2 ** 32);
+        document.cookie = `pid=${ playerId }; max-age=315360000`;
+        return playerId;
+    }
+}
+
+function update(time) {
+    let nTime = Date.now();
+    let deltaTime = 1 / 60;
+
     if (arrows.isUp("bossbattle")) {
         for (let p = 0; p < players.length; p++) {
             for (let c = 0; c < checkpoints.length;) {
@@ -298,32 +470,102 @@ function draw(time) {
             }
         }
     }
+
     if (arrows.isUp("pause")) {
         isPlay = !isPlay;
         setLevelsMenu(!isPlay);
     }
 
     if (isPlay) {
+        uniInput.length = 0;
+
+        if (!viewReplayMode && replayStream !== null && replayInfo !== null) {
+            for (let i = 1; i <= 4; i++) {
+                const pl = players[i - 1];
+                if (!pl) {
+                    uniInput.push({
+                        left: false,
+                        down: false,
+                        up: false,
+                        right: false
+                    });
+                    continue;
+                }
+                const input = {
+                    left: arrows.isHold(`left${ i }`),
+                    down: arrows.isHold(`down${ i }`),
+                    up: arrows.isHold(`up${ i }`),
+                    right: arrows.isHold(`right${ i }`)
+                };
+                if (debug.easyInputMode) {
+                    const y = (input.up ? -1 : 0) + (input.down ? 1 : 0);
+                    const x = (input.left ? -1 : 0) + (input.right ? 1 : 0);
+                    const angle = (Math.doublePI + Math.atan2(y, x)) % Math.doublePI;
+                    const thrust = input.up || input.down || input.left || input.right;
+
+                    const diff = Math.angleDiff(pl.angle, angle);
+                    const diffAbs = Math.abs(diff);
+                    const rotate = diffAbs > Math.doublePI * 0.01 ? (diff > 0 ? 1 : -1) : 0;
+
+                    uniInput.push({
+                        left: thrust && rotate < 0,
+                        down: false,
+                        up: thrust && diffAbs < Math.PI,
+                        right: thrust && rotate > 0
+                    });
+                } else
+                    uniInput.push(input);
+            }
+
+            const inputToHalfByte = (input) => (
+                (input.left ? 1 : 0) |
+                (input.down ? 2 : 0) |
+                (input.up ? 4 : 0) |
+                (input.right ? 8 : 0)
+            );
+            replayStream.pushUint8(inputToHalfByte(uniInput[1]) << 4 | inputToHalfByte(uniInput[0]));
+            if (players.length > 2)
+                replayStream.pushUint8(inputToHalfByte(uniInput[3]) << 4 | inputToHalfByte(uniInput[2]));
+
+        } else if (viewReplayMode && replayStream !== null) {
+            if (players.length > 0) {
+                const byte = replayStream.shiftUint8();
+                uniInput.push({
+                    left: byte & 1,
+                    down: byte & 2,
+                    up: byte & 4,
+                    right: byte & 8
+                }, {
+                    left: byte & 16,
+                    down: byte & 32,
+                    up: byte & 64,
+                    right: byte & 128
+                });
+            }
+            if (players.length > 2) {
+                const byte = replayStream.shiftUint8();
+                uniInput.push({
+                    left: byte & 1,
+                    down: byte & 2,
+                    up: byte & 4,
+                    right: byte & 8
+                }, {
+                    left: byte & 16,
+                    down: byte & 32,
+                    up: byte & 64,
+                    right: byte & 128
+                });
+            }
+        }
+
         updateBooms(nTime, deltaTime);
         updatePlayers(nTime, deltaTime);
         updateRockets(nTime, deltaTime);
+        updateGravityHoles(nTime, deltaTime);
         updateWeapons(nTime, deltaTime);
         updateBosses(nTime, deltaTime);
     }
-
-    drawMap(nTime, deltaTime);
-    drawMapGrid(nTime, deltaTime);
-    drawCheckpoints(nTime, deltaTime);
-    drawRockets(nTime, deltaTime);
-    drawWeapons(nTime, deltaTime);
-    drawPlayers(nTime, deltaTime);
-    drawBosses(nTime, deltaTime);
-    drawBooms(nTime, deltaTime);
-    drawUI(nTime, deltaTime);
-
     arrows.resetFrame();
-    lastUpd = nTime;
-    requestAnimationFrame(draw);
 }
 
 function drawMap(nTime, deltaTime) {
@@ -407,45 +649,9 @@ function updatePlayers(nTime, deltaTime) {
         const pl = players[p];
         if (pl.isDead)
             continue;
-        if (debug.playerMouseControl) {
-            if (mouse.mode === "second") {
-                pl.trust = pl.maxTrust;
-                const tAngle = Math.atan2(mouse.mapY - pl.y, mouse.mapX - pl.x);
-                pl.rotate = Math.angleDiff(pl.angle, tAngle);
-            } else {
-                pl.trust = 0;
-            }
-        } else if (debug.playerBots) {
-            const target = checkpoints
-                .reduce((prev, cp) => {
-                    if (cp.checkedPlayers.includes(p))
-                        return prev;
-                    const distance = Math.hypot(cp.x - pl.x, cp.y - pl.y);
-                    if (!prev || prev.distance > distance) {
-                        prev = {
-                            cp,
-                            distance
-                        };
-                    }
-                    return prev;
-                }, undefined)
-                ?.cp;
-            const tAngle = Math.atan2(target.y - pl.y, target.x - pl.x);
-            pl.rotate = Math.angleDiff(pl.angle, tAngle);
-            pl.trust = pl.maxTrust;
-        } else {
-            const pn = p + 1;
-            let rotate = 0;
-            if (arrows.isHold(`left${ pn }`))
-                rotate = -1;
-            else if (arrows.isHold(`right${ pn }`))
-                rotate = 1;
-            if (arrows.isDown(`up${ pn }`))
-                pl.trust = pl.maxTrust;
-            if (arrows.isUp(`up${ pn }`))
-                pl.trust = 0;
-
-            pl.rotate = rotate;
+        if (uniInput) {
+            pl.rotate = uniInput[p].left ? -1 : (uniInput[p].right ? 1 : 0);
+            pl.thrust = uniInput[p].up ? pl.maxTrust : 0;
         }
     }
 
@@ -455,8 +661,8 @@ function updatePlayers(nTime, deltaTime) {
         pl.angle += pl.rotate * pl.turnSpeed * deltaTime;
 
         let rad = pl.angle;
-        let vx = Math.cos(rad) * pl.trust * deltaTime / 2;
-        let vy = Math.sin(rad) * pl.trust * deltaTime / 2;
+        let vx = Math.cos(rad) * pl.thrust * deltaTime / 2;
+        let vy = Math.sin(rad) * pl.thrust * deltaTime / 2;
         pl.vx = (pl.vx + vx);
         pl.vy = (pl.vy + vy);
 
@@ -502,9 +708,11 @@ function updatePlayers(nTime, deltaTime) {
         if (pl.isDead)
             continue;
 
-        const boomCollision = booms.some((bm) => Math.hypot(bm.x - pl.x, bm.y - pl.y) < bm.radius);
-        if (boomCollision) {
-            killPlayer(p);
+        if (!debug.playerImmutable) {
+            const boomCollision = booms.some((bm) => Math.hypot(bm.x - pl.x, bm.y - pl.y) < bm.radius);
+            if (boomCollision) {
+                killPlayer(p);
+            }
         }
 
         for (let c = 0; c < checkpoints.length; c++) {
@@ -547,7 +755,7 @@ function drawPlayers(nTime, deltaTime) {
             drawLine(pl.x, pl.y, ax, ay);
         }
         drawArcScreen(x, y, zz * pl.scale * 0.7, `hsla(${ pl.hue },100%,50%,${ pl.isDead ? 0.2 : 0.5 })`);
-        drawImage(imgs["player"], x, y, pl.angle + Math.PI2, zz * pl.scale, null, 1);
+        drawImage(imgs["player"], x, y, pl.angle + Math.halfPI, zz * pl.scale, null, 1);
     }
 }
 
@@ -571,7 +779,6 @@ function updateWeapons(nTime, deltaTime) {
             const tAngle = Math.atan2(targetPlayer.y - en.y, targetPlayer.x - en.x);
             const angleDiff = Math.angleDiff(en.angle, tAngle);
             en.angle += Math.clamp(angleDiff, -deltaTime * en.maxTurnSpeed, deltaTime * en.maxTurnSpeed);
-
             if (en.reload <= 0 && Math.abs(angleDiff) <= en.maxAngleDiff / 2) {
                 const rocket = new Rocket(
                     en.x,
@@ -586,6 +793,7 @@ function updateWeapons(nTime, deltaTime) {
                 );
                 rockets.push(rocket);
                 en.reload += en.maxReload;
+                Sounds.playSound(en.sound || "s1");
             }
         }
         if (en.reload > 0)
@@ -615,8 +823,28 @@ function drawWeapons(nTime, deltaTime) {
             }
         }
 
+        if (debug.drawReload) {
+            const reloadProgress = 1 - en.reload / en.maxReload;
+            if (reloadProgress >= 0) {
+                const sx = screenX(en.x + 0.7);
+                const w = 0.2 * zz;
+                const sy = screenY(en.y - 0.4);
+                const h = 0.8 * zz;
+
+                ctx.beginPath();
+                ctx.fillStyle = "#000";
+                ctx.strokeStyle = "#000";
+                ctx.rect(sx, sy, w, h);
+                ctx.fill();
+                ctx.stroke();
+
+                ctx.fillStyle = reloadProgress >= 1 ? (en.targetPlayer ? "#33a" : "#3a3") : "#a33";
+                ctx.fillRect(sx, sy + h * (1 - reloadProgress), w, h * reloadProgress);
+            }
+        }
+
         drawImage(imgs["towerPlatform"], x, y, 0, zz * en.scale * 1.5);
-        drawImage(imgs[en.texture || "towerGeneral"], x, y, en.angle + Math.PI2, zz * en.scale * 1.2);
+        drawImage(imgs[en.texture || "towerGeneral"], x, y, en.angle + Math.halfPI, zz * en.scale * 1.2);
     }
 }
 
@@ -625,7 +853,7 @@ function updateRockets(nTime, deltaTime) {
         const rk = rockets[i];
         if (rk.lifetime <= 0) {
             boomRocket(i);
-        } else if (rk.x < 0 || mapW < rk.x || rk.y < 0 || mapH < rk.y) {
+        } else if (rk.x < -1 || mapW + 1 < rk.x || rk.y < -1 || mapH + 1 < rk.y) {
             boomRocket(i);
         } else {
             let isNeedBoom = false;
@@ -725,7 +953,7 @@ function drawRockets(nTime, deltaTime) {
             }
         }
         const alpha = ((rk.lifetime >= 1.5) || (nTime % 400 > 200)) ? 1 : 0.2;
-        drawImage(imgs["rocket"], x, y, rk.angle + Math.PI2, (alpha < 1) ? zz : (zz * 0.8), null, alpha);
+        drawImage(imgs["rocket"], x, y, rk.angle + Math.halfPI, (alpha < 1) ? zz : (zz * 0.8), null, alpha);
     }
 }
 
@@ -783,7 +1011,7 @@ function updateBosses(nTime, deltaTime) {
                 wp.my = bs.y + wp.y;
             } else {
                 const wDist = Math.hypot(wp.x, wp.y);
-                const wAngle = bs.angle + Math.atan2(wp.y, wp.x) + Math.PI2;
+                const wAngle = bs.angle + Math.atan2(wp.y, wp.x) + Math.halfPI;
                 wp.mx = bs.x + Math.cos(wAngle) * wDist;
                 wp.my = bs.y + Math.sin(wAngle) * wDist;
             }
@@ -849,11 +1077,11 @@ function drawBosses(nTime, deltaTime) {
         let x = screenX(bs.x);
         let y = screenY(bs.y);
 
-        const bAngle = bs.noRotateTexture ? -Math.PI2 : bs.angle;
-        drawImage(imgs[bs.texture], x, y, bAngle + Math.PI2, zz * bs.w, zz * bs.h, 1);
+        const bAngle = bs.noRotateTexture ? -Math.halfPI : bs.angle;
+        drawImage(imgs[bs.texture], x, y, bAngle + Math.halfPI, zz * bs.w, zz * bs.h, 1);
 
         for (const wp of bs.weapons) {
-            drawImage(imgs[wp.texture || "towerGeneral"], screenX(wp.mx), screenY(wp.my), bAngle - wp.angle + Math.PI2, zz * wp.scale);
+            drawImage(imgs[wp.texture || "towerGeneral"], screenX(wp.mx), screenY(wp.my), bAngle - wp.angle + Math.halfPI, zz * wp.scale);
         }
     }
 }
@@ -924,6 +1152,24 @@ function drawUI(nTime, deltaTime) {
             },
             { k: "mouseMode", v: mouse.mode }
         );
+    }
+
+    if (debug.drawInput && uniInput.length > 0 && uniInput.length >= players.length) {
+        const btnW = canv.width * 0.2 / 3;
+        const btnH = canv.height / 8;
+        const btnS = Math.min(btnW, btnH);
+        const sx = canv.width * 0.8;
+        for (let p = 0; p < players.length; p++) {
+            const pl = players[p];
+            ctx.fillStyle = `hsla(${ pl.hue },100%,50%,${ pl.isDead ? 0.2 : (uniInput[p].up ? 0.9 : 0.4) })`;
+            ctx.fillRect(sx + btnS + 5, p * 2 * btnS + 5, btnS - 10, btnS - 10); // up
+            ctx.fillStyle = `hsla(${ pl.hue },100%,50%,${ pl.isDead ? 0.2 : (uniInput[p].left ? 0.9 : 0.4) })`;
+            ctx.fillRect(sx + 5, (p * 2 * btnS + btnS) + 5, btnS - 10, btnS - 10); // left
+            ctx.fillStyle = `hsla(${ pl.hue },100%,50%,${ pl.isDead ? 0.2 : (uniInput[p].down ? 0.9 : 0.4) })`;
+            ctx.fillRect(sx + btnS + 5, (p * 2 * btnS + btnS) + 5, btnS - 10, btnS - 10); // down
+            ctx.fillStyle = `hsla(${ pl.hue },100%,50%,${ pl.isDead ? 0.2 : (uniInput[p].right ? 0.9 : 0.4) })`;
+            ctx.fillRect(sx + btnS * 2 + 5, (p * 2 * btnS + btnS) + 5, btnS - 10, btnS - 10); // right
+        }
     }
 
     if (values.length > 0) {
@@ -1006,6 +1252,40 @@ function drawCheckpoints(nTime, deltaTime) {
     }
 }
 
+function drawGravityHoles(nTime, deltaTime) {
+    for (let gh of gravityHoles) {
+        let x = screenX(gh.x);
+        let y = screenY(gh.y);
+        const radius = gh.radius * zz;
+
+        const force = 2000 - Math.abs(Math.clamp(gh.force, -100, 50)) * 20;
+        const bw = gh.force > 0 ? 0 : 255;
+        drawArcScreen(x, y, radius * 0.5, `rgb(${ bw },${ bw },${ bw })`);
+        const iterations = 3;
+        for (let i = 0; i < iterations; i++) {
+            let state = (nTime + force * (i / iterations)) % force / force;
+            if (gh.force < 0)
+                state = 1 - state;
+            const cl = `rgba(${ bw },${ bw },${ bw },${ state })`;
+            drawArcScreen(x, y, radius * Math.lerp(state, 1, 0.5), cl);
+        }
+    }
+}
+
+function updateGravityHoles(nTime, deltaTime) {
+    for (let gh of gravityHoles) {
+        for (let obj of [ ...players, ...rockets ]) {
+            const dist = Math.hypot(gh.x - obj.x, gh.y - obj.y);
+            if (dist < gh.radius) {
+                const multiplier = Math.easeOutQuad(1 - dist / gh.radius) * gh.force * deltaTime;
+                const angle = Math.atan2(gh.y - obj.y, gh.x - obj.x);
+                obj.vx += Math.cos(angle) * multiplier;
+                obj.vy += Math.sin(angle) * multiplier;
+            }
+        }
+    }
+}
+
 function drawArcScreen(sx, sy, sr, fillStyle, strokeStyle) {
     ctx.beginPath();
     ctx.arc(sx, sy, sr, 0, Math.PI * 2);
@@ -1071,6 +1351,7 @@ function boomRocket(rocketId) {
             rk.boomPrefab.hue
         );
         booms.push(boom);
+        Sounds.playSound("explode");
     }
     rockets.splice(rocketId, 1);
 }
@@ -1080,6 +1361,8 @@ function passCheckpoint(checkpointId, playerId, score = 20) {
     if (cp && !cp.checkedPlayers.includes(playerId)) {
         cp.checkedPlayers.push(playerId);
         players[playerId].score += score;
+        if (score > 0)
+            Sounds.playSound("upgrate");
         if (cp.checkedPlayers.length >= players.length) {
             checkpoints.splice(checkpointId, 1);
             if (checkpoints.length <= 0 && players.findIndex((pl) => !pl.isDead) >= 0) {
@@ -1108,15 +1391,32 @@ function killPlayer(playerId) {
         playerBoomPrefab.hue
     );
     booms.push(boom);
+    Sounds.playSound("userDestroy");
 
     for (let c = 0; c < checkpoints.length;) {
         if (!passCheckpoint(c, playerId, 0))
             c++;
     }
 
-    if (players.every(pl => pl.isDead)) {
-        setLevelsMenu(true);
+    if (players.every(pl => pl.isDead))
+        gameOver("lose");
+}
+
+function gameOver(reason) {
+    setLevelsMenu(true);
+    if (!viewReplayMode && replayStream) {
+        replayStream.pushUint8(0xFF);
+        replayStream.pushUint32(Date.now() / 1000); // user time
+        replayStream.pushUint8(replayInfo.levelId); // level id
+        replayStream.pushUint32(PLAYER_ID); // player id
+        replayStream.pushUint8(0xFF);
+        const replayBinary = replayStream.pack();
+        downloadBlob(replayBinary, `replay-${ levels[replayInfo.levelId].title }-${ Math.floor(Date.now() / 1000) }.bin`, "application/octet-stream");
+        elWatchReplay.onclick = () => watchReplay(replayBinary);
+        console.log(`replay size: ${ replayBinary.length }`);
     }
+    replayStream = null;
+    replayInfo = null;
 }
 
 function bossBattle() {
@@ -1207,12 +1507,35 @@ function onMouseWheel(e) {
     e.preventDefault ? e.preventDefault() : (e.returnValue = false);
 }
 
+const downloadBlob = (data, fileName, mimeType) => {
+    const blob = new Blob([ data ], {
+        type: mimeType
+    });
+
+    elDownloadReplay.href = window.URL.createObjectURL(blob);
+    elDownloadReplay.download = fileName;
+};
+
 addEventListener("load", main);
+
+function RGG(seed = Date.now()) {
+    return function random() {
+        const x = Math.sin(seed++) * 10000;
+        return x - Math.floor(x);
+    };
+}
+
+function getCookie(name) {
+    let matches = document.cookie.match(new RegExp(
+        "(?:^|; )" + name.replace(/([\.$?*|{}\(\)\[\]\\\/\+^])/g, "\\$1") + "=([^;]*)"
+    ));
+    return matches ? decodeURIComponent(matches[1]) : undefined;
+}
 
 export class Boss {
     x = 15;
     y = -5;
-    angle = Math.PI2;
+    angle = Math.halfPI;
     maxTrust = 10;
     maxSpeed = 2;
     turnSpeed = 0.1 * Math.doublePI;
@@ -1254,11 +1577,12 @@ export class Weapon {
     rocketPrefab;
     texture;
     scale;
+    sound;
 
     reload = 0;
     targetPlayer = undefined;
 
-    constructor(x, y, angle, rocketPrefab, maxTurnSpeed, radius, maxReload, maxAngleDiff, texture, reload, scale) {
+    constructor(x, y, angle, rocketPrefab, maxTurnSpeed, radius, maxReload, maxAngleDiff, texture, reload, scale, sound) {
         this.x = x;
         this.y = y;
         this.rocketPrefab = rocketPrefab;
@@ -1269,6 +1593,7 @@ export class Weapon {
         this.angle = angle;
         this.texture = texture;
         this.scale = scale;
+        this.sound = sound;
         this.reload = reload !== undefined ? reload : maxReload / 2 + 5;
     }
 }

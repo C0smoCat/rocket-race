@@ -13,6 +13,14 @@ canvas {
     height: 100vh;
 }
 
+#menu {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+}
+
 #menu-levels {
     width: 20vw;
     min-width: 100px;
@@ -25,4 +33,33 @@ canvas {
 #menu-levels button {
     width: 100%;
     padding: 1rem;
+}
+
+.replay {
+    position: absolute;
+    right: 8vmin;
+    bottom: 8vmin;
+    width: 8vmin;
+    height: 8vmin;
+    background: #fffa;
+    text-align: center;
+    border-radius: 8px;
+    text-decoration: none;
+    color: black;
+}
+
+#watchReplay {
+    bottom: 20vmin;
+}
+
+#openReplayLabel {
+    bottom: 32vmin;
+}
+
+#openReplay {
+    display: none;
+}
+
+#downloadReplay:not([href]) {
+    display: none;
 }

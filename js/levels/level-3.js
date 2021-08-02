@@ -18,27 +18,22 @@ export default {
         { prefab: 0, x: 7, y: 5 },
         { prefab: 0, x: 15, y: 5 },
         { prefab: 0, x: 7, y: 10 },
-        { prefab: 0, x: 15, y: 10 },
+        { prefab: 1, x: 15, y: 10 },
 
         { prefab: 0, x: 33, y: 25 },
         { prefab: 0, x: 25, y: 25 },
-        { prefab: 0, x: 25, y: 20 },
+        { prefab: 1, x: 25, y: 20 },
         { prefab: 0, x: 33, y: 20 },
 
         { prefab: 0, x: 7, y: 25 },
         { prefab: 0, x: 15, y: 25 },
         { prefab: 0, x: 7, y: 20 },
-        { prefab: 0, x: 15, y: 20 },
+        { prefab: 1, x: 15, y: 20 },
 
         { prefab: 0, x: 25, y: 5 },
         { prefab: 0, x: 33, y: 5 },
-        { prefab: 0, x: 25, y: 10 },
+        { prefab: 1, x: 25, y: 10 },
         { prefab: 0, x: 33, y: 10 },
-
-        { prefab: 1, x: 11, y: 15 },
-        { prefab: 1, x: 20, y: 7.5 },
-        { prefab: 1, x: 29, y: 15 },
-        { prefab: 1, x: 20, y: 22.5 }
     ],
     weaponPrefabs: [
         {
@@ -98,6 +93,14 @@ export default {
         { x: 38, y: 2 },
         { x: 38, y: 28 },
         { x: 2, y: 2 }
+    ],
+    gravity: [
+        {
+            x: 20,
+            y: 15,
+            radius: 4,
+            force: -10
+        }
     ],
     bosses: [
         {

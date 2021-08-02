@@ -9,7 +9,7 @@ export class Player {
     turnSpeed = 5;
     maxTrust = 15;
     trust = 0;
-    angle = -Math.PI2;
+    angle = -Math.halfPI;
     rotate = 0;
     line = [];
     isDead = false;
