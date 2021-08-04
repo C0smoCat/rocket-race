@@ -56,7 +56,7 @@ export function loadSound(name, fallbackUrl = undefined) {
 
 export function playSound(name, options, cb) {
     const sound = sounds[name];
-    const soundVolume = sounds[name].volume || 0.5;
+    const soundVolume = sounds[name].volume || debug?.musicVolume || 0.3;
 
     const buffer = sound.buffer;
     if (buffer) {
