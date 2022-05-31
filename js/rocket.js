@@ -1,5 +1,3 @@
-import { Boom } from "./boom.js";
-
 export class Rocket {
     hue = 340;
     x = 0;
@@ -21,7 +19,7 @@ export class Rocket {
         this.y = y;
         this.vx = Math.cos(angle) * maxSpeed;
         this.vy = Math.sin(angle) * maxSpeed;
-        this.maxSpeed = maxSpeed;
+        this.maxSpeed = maxSpeed || 3;
         this.lifetime = lifetime;
         this.angle = angle;
         this.maxTurnSpeed = maxTurnSpeed;

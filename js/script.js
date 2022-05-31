@@ -42,7 +42,8 @@ const arrows = trackKeys({
     right4: [ "Numpad6" ],
 
     pause: [ "Escape" ],
-    bossbattle: [ "Backquote" ]
+    bossbattle: [ "Backquote" ],
+    restart: [ "Enter", "KeyR", "Home", "End" ]
 });
 
 let menuSelectLevel = undefined;
@@ -50,22 +51,11 @@ let elDownloadReplay = undefined;
 let elWatchReplay = undefined;
 let menu = undefined;
 const levels = [
-    {
-        title: "Level 1",
-        path: "./levels/level-1.js"
-    },
-    {
-        title: "Level 2",
-        path: "./levels/level-2.js"
-    },
-    {
-        title: "Level 3",
-        path: "./levels/level-3.js"
-    },
-    {
-        title: "Level 4",
-        path: "./levels/level-4.js"
-    }
+    { title: "Level 1", path: "./levels/level-1.js" },
+    { title: "Level 2", path: "./levels/level-2.js" },
+    { title: "Level 3", path: "./levels/level-3.js" },
+    { title: "Level 4", path: "./levels/level-4.js" },
+    { title: "Update Preview", path: "./levels/level-5.js" }
 ];
 let graphicScale = 1.00;
 let backgroundColor = "#333";
@@ -194,6 +184,11 @@ function main() {
     });
 
     setInterval(update, 1000 / 60);
+
+    setTimeout(() => {
+        loadLevel(4);
+        window.weapons = weapons;
+    }, 50);
 }
 
 async function loadLevel(levelId = null) {
@@ -330,7 +325,7 @@ async function loadLevel(levelId = null) {
             w = Object.assign(level.weaponPrefabs[w.prefab], w);
         }
 
-        return new Weapon(
+        const wp = new Weapon(
             w.x,
             w.y,
             w.angle !== undefined ? Math.deg2rad(w.angle) : Math.atan2(w.y - mapH / 2, w.x - mapW / 2),
@@ -344,9 +339,25 @@ async function loadLevel(levelId = null) {
             w.scale !== undefined ? w.scale : 1,
             w.sound
         );
+
+        if (w.type !== undefined && w.type === "lazer") {
+            wp.type = w.type;
+            wp.length = w.length || w.radius;
+            wp.width = (w.width || 5) / 10;
+            wp.turnSpeedOnCharge = Math.deg2rad(w.turnSpeedOnCharge) || w.turnSpeed;
+            wp.turnSpeedOnFire = Math.deg2rad(w.turnSpeedOnFire) || w.turnSpeed;
+        } else
+            wp.type = null;
+
+        if (w.minRadius !== undefined && Number.isInteger(w.minRadius))
+            wp.minRadius = w.minRadius;
+
+        return wp;
     }
 
     function getRocketPrefab(level, r) {
+        if (r === undefined) return null;
+
         if (Number.isInteger(r)) {
             r = level.rocketPrefabs[r];
         } else if (r.prefab !== undefined) {
@@ -474,6 +485,12 @@ function update(time) {
     if (arrows.isUp("pause")) {
         isPlay = !isPlay;
         setLevelsMenu(!isPlay);
+    }
+
+    if (arrows.isUp("restart")) {
+        console.log("restart");
+        gameOver("restart");
+        loadLevel(4);
     }
 
     if (isPlay) {
@@ -713,12 +730,25 @@ function updatePlayers(nTime, deltaTime) {
             if (boomCollision) {
                 killPlayer(p);
             }
-        }
 
-        for (let c = 0; c < checkpoints.length; c++) {
-            const cp = checkpoints[c];
-            if (Math.hypot(cp.x - pl.x, cp.y - pl.y) < cp.radius) {
-                passCheckpoint(c, p);
+            for (let w = 0; w < weapons.length; w++) {
+                const en = weapons[w];
+                if (en.isFire) {
+                    const wx = en.x + Math.cos(en.angle) * en.length;
+                    const wy = en.y + Math.sin(en.angle) * en.length;
+                    const dist1 = Math.hypot(wx - pl.x, wy - pl.y);
+                    const dist2 = Math.hypot(en.x - pl.x, en.y - pl.y);
+                    if ((dist1 + dist2) < (en.length + en.width / 20)) {
+                        killPlayer(p);
+                    }
+                }
+            }
+
+            for (let c = 0; c < checkpoints.length; c++) {
+                const cp = checkpoints[c];
+                if (Math.hypot(cp.x - pl.x, cp.y - pl.y) < cp.radius) {
+                    passCheckpoint(c, p);
+                }
             }
         }
 
@@ -766,7 +796,7 @@ function updateWeapons(nTime, deltaTime) {
                 if (pl.isDead)
                     return prev;
                 const distance = Math.hypot(pl.x - en.x, pl.y - en.y);
-                if (distance < en.radius && (!prev || prev.distance > distance)) {
+                if (distance < en.radius && ((!prev || prev.distance > distance) && (!en.minRadius || en.minRadius < distance))) {
                     prev = {
                         pl,
                         distance
@@ -775,29 +805,59 @@ function updateWeapons(nTime, deltaTime) {
                 return prev;
             }, undefined)
             ?.pl;
-        if (targetPlayer) {
-            const tAngle = Math.atan2(targetPlayer.y - en.y, targetPlayer.x - en.x);
-            const angleDiff = Math.angleDiff(en.angle, tAngle);
-            en.angle += Math.clamp(angleDiff, -deltaTime * en.maxTurnSpeed, deltaTime * en.maxTurnSpeed);
-            if (en.reload <= 0 && Math.abs(angleDiff) <= en.maxAngleDiff / 2) {
-                const rocket = new Rocket(
-                    en.x,
-                    en.y,
-                    en.angle,
-                    en.rocketPrefab.maxSpeed,
-                    en.rocketPrefab.lifetime,
-                    en.rocketPrefab.radius,
-                    en.rocketPrefab.maxTurnSpeed,
-                    en.rocketPrefab.hue,
-                    en.rocketPrefab.boomPrefab
-                );
-                rockets.push(rocket);
-                en.reload += en.maxReload;
-                Sounds.playSound(en.sound || "s1");
+        if (en.type === "lazer") {
+            if (en.isFire) {
+                if (en.reload < en.maxReload) {
+                    en.reload = Math.clamp(en.reload + deltaTime, 0, en.maxReload);
+                } else {
+                    en.isFire = false;
+                }
             }
+            if (targetPlayer) {
+                const tAngle = Math.atan2(targetPlayer.y - en.y, targetPlayer.x - en.x);
+                const angleDiff = Math.angleDiff(en.angle, tAngle);
+                const turnSpeed = en.isFire ? en.turnSpeedOnFire : ((en.reload < en.maxReload) ? en.turnSpeedOnCharge : en.maxTurnSpeed);
+                en.angle += Math.clamp(angleDiff, -deltaTime * turnSpeed, deltaTime * turnSpeed);
+
+                if (!en.isFire && Math.abs(angleDiff) <= en.maxAngleDiff / 2) {
+                    if (en.reload > 0) en.reload -= deltaTime;
+                    else en.isFire = true;
+                } else if (!en.isFire && en.reload < en.maxReload) {
+                    en.reload = Math.clamp(en.reload + deltaTime, 0, en.maxReload);
+                }
+            } else if (!en.isFire && en.reload < en.maxReload) {
+                if (en.reload <= 0.3 * en.maxReload) {
+                    if (en.reload > 0) en.reload -= deltaTime;
+                    else en.isFire = true;
+                } else {
+                    en.reload = Math.clamp(en.reload + deltaTime, 0, en.maxReload);
+                }
+            }
+        } else {
+            if (targetPlayer) {
+                const tAngle = Math.atan2(targetPlayer.y - en.y, targetPlayer.x - en.x);
+                const angleDiff = Math.angleDiff(en.angle, tAngle);
+                en.angle += Math.clamp(angleDiff, -deltaTime * en.maxTurnSpeed, deltaTime * en.maxTurnSpeed);
+                if (en.reload <= 0 && Math.abs(angleDiff) <= en.maxAngleDiff / 2) {
+                    const rocket = new Rocket(
+                        en.x,
+                        en.y,
+                        en.angle,
+                        en.rocketPrefab.maxSpeed,
+                        en.rocketPrefab.lifetime,
+                        en.rocketPrefab.radius,
+                        en.rocketPrefab.maxTurnSpeed,
+                        en.rocketPrefab.hue,
+                        en.rocketPrefab.boomPrefab
+                    );
+                    rockets.push(rocket);
+                    en.reload += en.maxReload;
+                    Sounds.playSound(en.sound || "s1");
+                }
+            }
+            if (en.reload > 0)
+                en.reload -= deltaTime;
         }
-        if (en.reload > 0)
-            en.reload -= deltaTime;
         en.targetPlayer = targetPlayer;
     }
 }
@@ -808,18 +868,35 @@ function drawWeapons(nTime, deltaTime) {
     for (let en of weapons) {
         let x = screenX(en.x);
         let y = screenY(en.y);
+
         if (debug.drawWeapons) {
             if (en.targetPlayer) {
                 ctx.strokeStyle = "#00ff0088";
                 ctx.fillStyle = "#00ff0022";
                 ctx.beginPath();
-                ctx.moveTo(screenX(en.x), screenY(en.y));
-                ctx.arc(screenX(en.x), screenY(en.y), en.radius * zz, en.angle - en.maxAngleDiff / 2, en.angle + en.maxAngleDiff / 2);
-                ctx.lineTo(screenX(en.x), screenY(en.y));
+                if (en.minRadius > 0) {
+                    ctx.arc(screenX(en.x), screenY(en.y), en.minRadius * zz, en.angle - en.maxAngleDiff / 2, en.angle + en.maxAngleDiff / 2);
+                    ctx.arc(screenX(en.x), screenY(en.y), en.radius * zz, en.angle + en.maxAngleDiff / 2, en.angle - en.maxAngleDiff / 2, true);
+                    ctx.lineTo(screenX(en.x), screenY(en.y));
+                } else {
+                    ctx.moveTo(screenX(en.x), screenY(en.y));
+                    ctx.arc(screenX(en.x), screenY(en.y), en.radius * zz, en.angle - en.maxAngleDiff / 2, en.angle + en.maxAngleDiff / 2);
+                    ctx.lineTo(screenX(en.x), screenY(en.y));
+                }
                 ctx.stroke();
                 ctx.fill();
             } else {
-                drawArc(en.x, en.y, en.radius, "#ff000022", "#ff000088");
+                if (en.minRadius > 0) {
+                    ctx.strokeStyle = "#ff000088";
+                    ctx.fillStyle = "#ff000022";
+                    ctx.beginPath();
+                    ctx.arc(screenX(en.x), screenY(en.y), en.minRadius * zz, 0, Math.doublePI);
+                    ctx.arc(screenX(en.x), screenY(en.y), en.radius * zz, 0, Math.doublePI, true);
+                    ctx.stroke();
+                    ctx.fill();
+                } else {
+                    drawArc(en.x, en.y, en.radius, "#ff000022", "#ff000088");
+                }
             }
         }
 
@@ -838,13 +915,55 @@ function drawWeapons(nTime, deltaTime) {
                 ctx.fill();
                 ctx.stroke();
 
-                ctx.fillStyle = reloadProgress >= 1 ? (en.targetPlayer ? "#33a" : "#3a3") : "#a33";
+                ctx.fillStyle = en.isFire ? "#aa33a8" : (reloadProgress >= 1 ? (en.targetPlayer ? "#33a" : "#3a3") : "#a33");
                 ctx.fillRect(sx, sy + h * (1 - reloadProgress), w, h * reloadProgress);
             }
         }
 
         drawImage(imgs["towerPlatform"], x, y, 0, zz * en.scale * 1.5);
-        drawImage(imgs[en.texture || "towerGeneral"], x, y, en.angle + Math.halfPI, zz * en.scale * 1.2);
+
+        if (en.type === "lazer") {
+            if (en.isFire) {
+                const rAngle = Math.random() * Math.doublePI;
+                let ox = Math.cos(en.angle + rAngle) * en.width / 10;
+                let oy = Math.sin(en.angle + rAngle) * en.width / 10;
+                drawImage(imgs[en.texture || "towerGeneral"], x + ox * zz, y + oy * zz, en.angle + Math.halfPI, zz * en.scale * 1.2);
+                drawLine(
+                    en.x + ox,
+                    en.y + oy,
+                    en.x + Math.cos(en.angle) * en.length + ox,
+                    en.y + Math.sin(en.angle) * en.length + oy,
+                    `rgb(255, 0, 0)`,
+                    en.width * zz
+                );
+            } else {
+                drawImage(imgs[en.texture || "towerGeneral"], x, y, en.angle + Math.halfPI, zz * en.scale * 1.2);
+                const reloadProgress = Math.easeInQuad(en.reload / en.maxReload);
+                let ox = Math.cos(en.angle + Math.halfPI) * reloadProgress * en.width / 2;
+                let oy = Math.sin(en.angle + Math.halfPI) * reloadProgress * en.width / 2;
+                drawLine(
+                    en.x + ox,
+                    en.y + oy,
+                    en.x + Math.cos(en.angle) * en.length + ox,
+                    en.y + Math.sin(en.angle) * en.length + oy,
+                    `rgba(255,0,0,${ 1 - reloadProgress })`,
+                    (1 - reloadProgress) * 2
+                );
+
+                ox = Math.cos(en.angle - Math.halfPI) * reloadProgress * en.width / 2;
+                oy = Math.sin(en.angle - Math.halfPI) * reloadProgress * en.width / 2;
+                drawLine(
+                    en.x + ox,
+                    en.y + oy,
+                    en.x + Math.cos(en.angle) * en.length + ox,
+                    en.y + Math.sin(en.angle) * en.length + oy,
+                    `rgba(255,0,0,${ 1 - reloadProgress })`,
+                    (1 - reloadProgress) * 2
+                );
+            }
+        } else {
+            drawImage(imgs[en.texture || "towerGeneral"], x, y, en.angle + Math.halfPI, zz * en.scale * 1.2);
+        }
     }
 }
 
@@ -1572,6 +1691,7 @@ export class Weapon {
     angle;
     maxTurnSpeed;
     radius;
+    minRadius;
     maxReload;
     maxAngleDiff;
     rocketPrefab;

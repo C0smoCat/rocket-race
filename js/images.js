@@ -4,6 +4,7 @@ downloadImg("towerGeneral");
 downloadImg("towerSniper");
 downloadImg("towerHeavy");
 downloadImg("towerPlatform");
+downloadImg("towerLazer");
 downloadImg("towerPulse");
 downloadImg("rocket");
 downloadImg("player");
